@@ -3,75 +3,106 @@ import sqlite3
 import pandas as pd
 from datetime import datetime
 
-# Configuración de página
-st.set_page_config(page_title="Pilo POS Tablet", page_icon="🍗", layout="wide", initial_sidebar_state="collapsed")
+# --- CONFIGURACIÓN DE PÁGINA ---
+st.set_page_config(page_title="Pilo POS v7", page_icon="🍔", layout="wide", initial_sidebar_state="collapsed")
 
 PIN_ADMIN = "200423"
-DB_NAME = "pos_v6.db"
+DB_NAME = "pos_v7.db"
 
-# Estado de sesión
+# --- ESTADO DE SESIÓN ---
 if "cat_seleccionada" not in st.session_state:
     st.session_state.cat_seleccionada = "Pizzas"
+if "carrito" not in st.session_state:
+    st.session_state.carrito = {}
 
-# Paleta de Colores por Categoría
+# Paleta de Colores
 COLORES = {
     "Pizzas": {"bg": "#2b5c8f", "text": "white"},        # Azul
     "Alitas": {"bg": "#c69214", "text": "white"},        # Amarillo
     "Hamburguesas": {"bg": "#d97724", "text": "white"},  # Naranja
     "Entradas": {"bg": "#2e7d32", "text": "white"},      # Verde
-    "Otros": {"bg": "#38bdf8", "text": "#0f172a"}        # Celeste
+    "Otros": {"bg": "#0284c7", "text": "white"}         # Celeste
 }
 
 bg_actual = COLORES[st.session_state.cat_seleccionada]["bg"]
 text_actual = COLORES[st.session_state.cat_seleccionada]["text"]
 
-# Inyección CSS con Scope Aislado
+# --- ESTILOS CSS PERSONALIZADOS ---
 st.markdown(f"""
     <style>
-    /* Ajuste de fuente base */
-    html, body, [class*="css"] {{
-        font-size: 17px !important;
+    /* 1. Header Superior Naranja Pilo POS */
+    .pilo-header {{
+        background: linear-gradient(90deg, #d97724 0%, #ea580c 100%);
+        padding: 15px 25px;
+        border-radius: 12px;
+        color: white;
+        margin-bottom: 20px;
+        box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.25);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }}
+    .pilo-title {{
+        font-size: 28px;
+        font-weight: 800;
+        margin: 0;
+        letter-spacing: 0.5px;
     }}
 
-    /* Estilo general para todos los botones */
+    /* Base para botones de la app */
     div.stButton > button {{
         font-weight: bold !important;
-        font-size: 18px !important;
-        border-radius: 12px !important;
-        padding: 14px !important;
+        font-size: 17px !important;
+        border-radius: 10px !important;
+        padding: 12px !important;
         border: none !important;
-        box-shadow: 0px 3px 6px rgba(0,0,0,0.3) !important;
+        box-shadow: 0px 2px 5px rgba(0,0,0,0.2) !important;
     }}
 
-    /* 1. BOTONES SUPERIORES DE CATEGORÍAS (Usamos las claves del botón directamente) */
+    /* 2. Botones de Categorías */
     div[data-testid="stKey-cat_btn_Pizzas"] button {{ background-color: #2b5c8f !important; color: white !important; }}
     div[data-testid="stKey-cat_btn_Alitas"] button {{ background-color: #c69214 !important; color: white !important; }}
     div[data-testid="stKey-cat_btn_Hamburguesas"] button {{ background-color: #d97724 !important; color: white !important; }}
     div[data-testid="stKey-cat_btn_Entradas"] button {{ background-color: #2e7d32 !important; color: white !important; }}
-    div[data-testid="stKey-cat_btn_Otros"] button {{ background-color: #38bdf8 !important; color: #0f172a !important; }}
+    div[data-testid="stKey-cat_btn_Otros"] button {{ background-color: #0284c7 !important; color: white !important; }}
 
-    /* 2. PRODUCTOS ABAJO (Pinta TODOS los botones de productos con el mismo color de la categoría activa) */
+    /* 3. Botones de Productos (Color Unificado de la Categoría Activa) */
     div[data-testid="stKey-prod_zone"] div.stButton > button {{
         background-color: {bg_actual} !important;
         color: {text_actual} !important;
+        height: 80px !important;
+        white-space: pre-wrap !important;
     }}
 
-    /* 3. BOTONES DE ACCIÓN (Cobrar y Vaciar) */
+    /* 4. Botones Principales de Acción */
     div[data-testid="stKey-btn_cobrar"] button {{
-        background-color: #2e7d32 !important;
+        background-color: #16a34a !important;
         color: white !important;
-        font-size: 20px !important;
-        height: 3.2em !important;
+        font-size: 22px !important;
+        height: 60px !important;
     }}
 
     div[data-testid="stKey-btn_vaciar"] button {{
-        background-color: #1e3a8a !important;
+        background-color: #dc2626 !important;
         color: white !important;
+    }}
+
+    /* Total Gigante */
+    .total-display {{
+        background-color: #0f172a;
+        color: #22c55e;
+        padding: 15px;
+        border-radius: 12px;
+        text-align: center;
+        font-size: 32px;
+        font-weight: 900;
+        margin: 15px 0;
+        border: 2px solid #22c55e;
     }}
     </style>
 """, unsafe_allow_html=True)
 
-# --- BASE DE DATOS Y MENÚ REAL ---
+# --- BASE DE DATOS Y CORRELATIVOS ---
 def inicializar_bd():
     conexion = sqlite3.connect(DB_NAME)
     cursor = conexion.cursor()
@@ -90,9 +121,11 @@ def inicializar_bd():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS ventas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            correlativo TEXT,
             total REAL,
             metodo TEXT,
-            fecha TEXT
+            fecha TEXT,
+            detalle TEXT
         )
     """)
     
@@ -135,35 +168,39 @@ def inicializar_bd():
             ("Porción de Papa", "Otros", 5.00, 100, "Extra"),
             ("Porción de Maduro", "Otros", 5.00, 100, "Extra"),
             ("Porción de Alitas (x ud)", "Otros", 4.00, 100, "Extra"),
-            ("Porción de Salchicha", "Otros", 3.00, 100, "Extra"),
-            ("Carne de Hamburguesa", "Otros", 4.00, 100, "Extra"),
-            ("Porción de Huevo", "Otros", 1.00, 100, "Extra"),
-            ("Jamón y Tocino", "Otros", 2.00, 100, "Extra"),
-            ("Porción de Piña", "Otros", 1.00, 100, "Extra"),
-            ("Queso Hamburguesa", "Otros", 1.00, 100, "Extra"),
-            ("Queso Pizza", "Otros", 3.00, 100, "Extra"),
-            ("Agua Mineral", "Otros", 2.00, 100, "Bebida"),
-            ("Agua Mineral San Luis", "Otros", 3.00, 100, "Bebida"),
-            ("Inca Kola", "Otros", 5.00, 100, "Bebida"),
-            ("Coca Cola", "Otros", 5.00, 100, "Bebida"),
-            ("Chicha Morada", "Otros", 3.00, 100, "Bebida"),
-            ("Cocina", "Otros", 3.00, 100, "Bebida")
+            ("Inca Kola 500ml", "Otros", 5.00, 100, "Bebida"),
+            ("Coca Cola 500ml", "Otros", 5.00, 100, "Bebida"),
+            ("Chicha Morada", "Otros", 3.00, 100, "Bebida")
         ]
         cursor.executemany("INSERT INTO productos (nombre, categoria, precio, stock, tipo) VALUES (?, ?, ?, ?, ?)", productos_defecto)
     
     conexion.commit()
     conexion.close()
 
+def obtener_siguiente_correlativo():
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM ventas")
+    num_ventas = c.fetchone()[0] + 1
+    conn.close()
+    return f"B001-{num_ventas:06d}"
+
 inicializar_bd()
 
-# --- NAVEGACIÓN ---
-st.title("🍗 piloPOS - Punto de Venta")
+# --- HEADER SUPERIOR COLOR NARANJA ---
+st.markdown("""
+    <div class="pilo-header">
+        <div class="pilo-title">🍔 Pilo Burger & POS v7</div>
+        <div style="font-size: 16px; font-weight: bold;">Sistema de Venta Rápida</div>
+    </div>
+""", unsafe_allow_html=True)
 
+# --- NAVEGACIÓN PRINCIPAL ---
 tab1, tab2, tab3, tab4 = st.tabs([
     "🛒 Punto de Venta", 
     "📋 Ventas del Día", 
     "🔒 Control de Caja", 
-    "📊 Reporte Mensual"
+    "📊 Reportes y Estadísticas"
 ])
 
 # ---------------------------------------------------------
@@ -177,11 +214,14 @@ with tab1:
     conn.close()
 
     if not caja_activa:
-        st.warning("⚠️ La caja está CERRADA. Abre caja para empezar las ventas.")
-        clave_apertura = st.text_input("Contraseña para Abrir Caja", type="password", key="pass_open")
-        monto_ini = st.number_input("Monto Inicial en Caja (S/):", min_value=0.0, value=0.0, step=5.0)
+        st.warning("⚠️ La caja está CERRADA. Inicia sesión de caja para empezar a vender.")
+        col_c1, col_c2 = st.columns(2)
+        with col_c1:
+            clave_apertura = st.text_input("Contraseña Administrador", type="password", key="pass_open")
+        with col_c2:
+            monto_ini = st.number_input("Monto Inicial en Caja (S/):", min_value=0.0, value=0.0, step=5.0)
         
-        if st.button("🔓 ABRIR CAJA E INICIAR VENTAS", use_container_width=True):
+        if st.button("🔓 ABRIR CAJA", use_container_width=True):
             if clave_apertura == PIN_ADMIN:
                 conn = sqlite3.connect(DB_NAME)
                 c = conn.cursor()
@@ -194,9 +234,7 @@ with tab1:
             else:
                 st.error("Contraseña incorrecta")
     else:
-        st.success(f"🟢 Caja Abierta con S/ {caja_activa[1]:.2f}")
-        
-        st.write("### Categorías:")
+        # Categorías
         cols_cat = st.columns(5)
         categorias = ["Pizzas", "Alitas", "Hamburguesas", "Entradas", "Otros"]
         
@@ -210,6 +248,7 @@ with tab1:
         
         col_menu, col_carrito = st.columns([1.2, 1])
         
+        # --- CATÁLOGO DE PRODUCTOS ---
         with col_menu:
             conn = sqlite3.connect(DB_NAME)
             c = conn.cursor()
@@ -219,84 +258,148 @@ with tab1:
             
             st.subheader(f"Menú: {st.session_state.cat_seleccionada}")
             
-            # Encapsulamos el área de productos con la clave 'prod_zone'
             with st.container(key="prod_zone"):
                 m_col1, m_col2 = st.columns(2)
                 for i, (p_id, p_nom, p_precio) in enumerate(prods):
                     col = m_col1 if i % 2 == 0 else m_col2
                     with col:
                         if st.button(f"{p_nom}\nS/ {p_precio:.2f}", key=f"p_{p_id}", use_container_width=True):
-                            if "carrito" not in st.session_state:
-                                st.session_state.carrito = []
-                            st.session_state.carrito.append({"id": p_id, "nombre": p_nom, "precio": p_precio})
-                            st.toast(f"＋ {p_nom}")
+                            if p_id in st.session_state.carrito:
+                                st.session_state.carrito[p_id]["cant"] += 1
+                            else:
+                                st.session_state.carrito[p_id] = {"nombre": p_nom, "precio": p_precio, "cant": 1}
+                            st.rerun()
 
+        # --- CARRITO DE COMPRAS ---
         with col_carrito:
             st.subheader("🛒 Pedido Actual")
             metodo_pago = st.radio("Método de Pago:", ["Efectivo", "Yape", "Plin", "Mixto"], horizontal=True)
             
-            if "carrito" in st.session_state and st.session_state.carrito:
-                for item in st.session_state.carrito:
-                    st.write(f"• **{item['nombre']}** — S/ {item['precio']:.2f}")
-                    
-                total = sum(item["precio"] for item in st.session_state.carrito)
-                st.markdown(f"### **Total: S/ {total:.2f}**")
+            if st.session_state.carrito:
+                st.markdown("---")
+                total = 0.0
                 
+                # Lista de items con control +, - y eliminar
+                items_a_eliminar = []
+                for p_id, item in st.session_state.carrito.items():
+                    subtotal = item["precio"] * item["cant"]
+                    total += subtotal
+                    
+                    c_desc, c_btn1, c_cant, c_btn2, c_del = st.columns([3, 1, 1, 1, 1])
+                    c_desc.write(f"**{item['nombre']}**\nS/ {item['precio']:.2f}")
+                    
+                    if c_btn1.button("−", key=f"minus_{p_id}"):
+                        st.session_state.carrito[p_id]["cant"] -= 1
+                        if st.session_state.carrito[p_id]["cant"] <= 0:
+                            items_a_eliminar.append(p_id)
+                        st.rerun()
+                        
+                    c_cant.write(f"**{item['cant']}**")
+                    
+                    if c_btn2.button("+", key=f"plus_{p_id}"):
+                        st.session_state.carrito[p_id]["cant"] += 1
+                        st.rerun()
+                        
+                    if c_del.button("🗑️", key=f"del_{p_id}"):
+                        items_a_eliminar.append(p_id)
+                        st.rerun()
+
+                for p_id in items_a_eliminar:
+                    if p_id in st.session_state.carrito:
+                        del st.session_state.carrito[p_id]
+                        st.rerun()
+
+                st.markdown(f'<div class="total-display">TOTAL: S/ {total:.2f}</div>', unsafe_allow_html=True)
+                
+                # Vuelto / Pagos
                 vuelto = 0.0
                 if metodo_pago == "Efectivo":
-                    monto_recibido = st.number_input("Monto Recibido (S/):", min_value=total, value=total, step=1.0)
+                    monto_recibido = st.number_input("Monto Entregado (S/):", min_value=total, value=total, step=1.0)
                     vuelto = monto_recibido - total
                     st.info(f"💵 **Vuelto a entregar: S/ {vuelto:.2f}**")
                 elif metodo_pago == "Mixto":
                     efectivo_part = st.number_input("Monto en Efectivo (S/):", min_value=0.0, max_value=total, value=total/2)
                     digital_part = total - efectivo_part
                     st.write(f"📲 Yape/Plin restante: **S/ {digital_part:.2f}**")
-                
-                if st.button("🚀 COBRAR (Registrar Venta)", key="btn_cobrar", use_container_width=True):
+
+                if st.button("🚀 COBRAR", key="btn_cobrar", use_container_width=True):
+                    correlativo = obtener_siguiente_correlativo()
+                    fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    
+                    detalle_str = ", ".join([f"{item['cant']}x {item['nombre']}" for item in st.session_state.carrito.values()])
+                    
                     conn = sqlite3.connect(DB_NAME)
                     c = conn.cursor()
-                    fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    c.execute("INSERT INTO ventas (total, metodo, fecha) VALUES (?, ?, ?)",
-                              (total, metodo_pago, fecha_actual))
+                    c.execute("INSERT INTO ventas (correlativo, total, metodo, fecha, detalle) VALUES (?, ?, ?, ?, ?)",
+                              (correlativo, total, metodo_pago, fecha_actual, detalle_str))
                     conn.commit()
                     conn.close()
-                    st.session_state.carrito = []
-                    st.success(f"¡Venta Registrada! ({metodo_pago})")
-                    st.rerun()
                     
-                if st.button("🗑️ Vaciar Carrito", key="btn_vaciar", use_container_width=True):
-                    st.session_state.carrito = []
+                    st.session_state.ultima_venta = {
+                        "correlativo": correlativo,
+                        "total": total,
+                        "metodo": metodo_pago,
+                        "fecha": fecha_actual,
+                        "detalle": st.session_state.carrito.copy()
+                    }
+                    
+                    st.session_state.carrito = {}
+                    st.success(f"Venta {correlativo} Registrada!")
+                    st.rerun()
+
+                if st.button("🗑️ VACIAR CARRITO", key="btn_vaciar", use_container_width=True):
+                    st.session_state.carrito = {}
                     st.rerun()
             else:
-                st.info("El carrito está vacío.")
+                st.info("El carrito está vacío. Haz clic en los productos para agregarlos.")
+                
+            # Generación de Ticket / Boleta de la última venta
+            if "ultima_venta" in st.session_state:
+                st.markdown("---")
+                st.subheader("🧾 Último Ticket Emitido")
+                uv = st.session_state.ultima_venta
+                ticket_txt = f"""
+================================
+        PILO BURGER POS        
+================================
+Boleta: {uv['correlativo']}
+Fecha: {uv['fecha']}
+Método: {uv['metodo']}
+--------------------------------
+"""
+                for item in uv['detalle'].values():
+                    ticket_txt += f"{item['cant']}x {item['nombre']} - S/ {item['precio']*item['cant']:.2f}\n"
+                ticket_txt += f"--------------------------------\nTOTAL: S/ {uv['total']:.2f}\n================================"
+                
+                st.code(ticket_txt, language="text")
+                st.download_button("🖨️ Descargar Ticket", ticket_txt, file_name=f"ticket_{uv['correlativo']}.txt")
 
 # ---------------------------------------------------------
 # PESTAÑA 2: VENTAS DEL DÍA
 # ---------------------------------------------------------
 with tab2:
-    st.subheader("📋 Ventas Realizadas hoy")
+    st.subheader("📋 Ventas Realizadas")
     conn = sqlite3.connect(DB_NAME)
     try:
-        df_ventas = pd.read_sql_query("SELECT id AS ID, total AS 'Total S/', metodo AS Método, fecha AS Fecha FROM ventas ORDER BY id DESC", conn)
+        df_ventas = pd.read_sql_query("SELECT correlativo AS Boleta, detalle AS Detalle, total AS 'Total S/', metodo AS Método, fecha AS Fecha FROM ventas ORDER BY id DESC", conn)
         if not df_ventas.empty:
             st.dataframe(df_ventas, use_container_width=True)
             total_hoy = df_ventas["Total S/"].sum()
-            st.metric("Total Recaudado Hoy", f"S/ {total_hoy:.2f}")
+            st.metric("Total Recaudado", f"S/ {total_hoy:.2f}")
         else:
             st.write("Aún no hay ventas registradas.")
     except Exception:
-        st.write("Sin ventas por ahora.")
+        st.write("Sin ventas registradas.")
     conn.close()
 
 # ---------------------------------------------------------
-# PESTAÑA 3: CONTROL DE CAJA Y CIERRE
+# PESTAÑA 3: CONTROL DE CAJA
 # ---------------------------------------------------------
 with tab3:
     st.subheader("🔒 Control y Cierre de Caja")
     clave = st.text_input("Contraseña de Administrador", type="password", key="pass_cierre")
     
     if clave == PIN_ADMIN:
-        st.success("Acceso concedido")
         conn = sqlite3.connect(DB_NAME)
         c = conn.cursor()
         c.execute("SELECT * FROM caja WHERE estado = 'ABIERTA'")
@@ -306,23 +409,18 @@ with tab3:
         conn.close()
         
         if caja_activa:
-            st.write(f"**Caja iniciada el:** {caja_activa[3]}")
+            st.write(f"**Apertura:** {caja_activa[3]}")
             st.write(f"**Monto Inicial:** S/ {caja_activa[1]:.2f}")
             
             tot_efectivo = df_ventas[df_ventas['metodo'] == 'Efectivo']['total'].sum() if not df_ventas.empty else 0
             tot_yape = df_ventas[df_ventas['metodo'] == 'Yape']['total'].sum() if not df_ventas.empty else 0
             tot_plin = df_ventas[df_ventas['metodo'] == 'Plin']['total'].sum() if not df_ventas.empty else 0
-            tot_mixto = df_ventas[df_ventas['metodo'] == 'Mixto']['total'].sum() if not df_ventas.empty else 0
             tot_ventas = df_ventas['total'].sum() if not df_ventas.empty else 0
             
-            st.markdown("---")
-            c1, c2, c3, c4 = st.columns(4)
+            c1, c2, c3 = st.columns(3)
             c1.metric("💵 Efectivo", f"S/ {tot_efectivo:.2f}")
-            c2.metric("📲 Yape", f"S/ {tot_yape:.2f}")
-            c3.metric("📲 Plin", f"S/ {tot_plin:.2f}")
-            c4.metric("🔀 Mixto", f"S/ {tot_mixto:.2f}")
-            st.metric("💰 Total Ventas", f"S/ {tot_ventas:.2f}")
-            st.metric("💵 Total Efectivo Esperado", f"S/ {(caja_activa[1] + tot_efectivo):.2f}")
+            c2.metric("📲 Yape / Plin", f"S/ {(tot_yape + tot_plin):.2f}")
+            c3.metric("💰 Total Ventas", f"S/ {tot_ventas:.2f}")
             
             st.markdown("---")
             if st.button("🔒 CERRAR CAJA Y FINALIZAR TURNO", use_container_width=True):
@@ -335,27 +433,28 @@ with tab3:
                 st.success("¡Caja Cerrada con Éxito!")
                 st.rerun()
         else:
-            st.info("La caja actualmente está CERRADA.")
-    elif clave:
-        st.error("Contraseña incorrecta")
+            st.info("La caja está CERRADA.")
 
 # ---------------------------------------------------------
-# PESTAÑA 4: REPORTE MENSUAL
+# PESTAÑA 4: REPORTES Y ESTADÍSTICAS
 # ---------------------------------------------------------
 with tab4:
-    st.subheader("📊 Reporte Mensual")
-    clave_rep = st.text_input("Contraseña de Administrador", type="password", key="pass_rep")
+    st.subheader("📊 Reportes y Estadísticas de Ventas")
+    clave_rep = st.text_input("Contraseña Administrador", type="password", key="pass_rep")
     if clave_rep == PIN_ADMIN:
-        st.success("Acceso concedido")
         conn = sqlite3.connect(DB_NAME)
         try:
             df_ventas = pd.read_sql_query("SELECT * FROM ventas", conn)
             if not df_ventas.empty:
-                st.dataframe(df_ventas, use_container_width=True)
+                col_r1, col_r2 = st.columns(2)
+                with col_r1:
+                    st.markdown("### Métodos de Pago Más Usados")
+                    st.bar_chart(df_ventas['metodo'].value_counts())
+                with col_r2:
+                    st.markdown("### Histórico de Ingresos")
+                    st.line_chart(df_ventas['total'])
             else:
-                st.write("No hay datos de ventas registrados.")
+                st.write("No hay datos de ventas disponibles para gráficos.")
         except Exception:
             st.write("Sin datos disponibles.")
         conn.close()
-    elif clave_rep:
-        st.error("Contraseña incorrecta")
