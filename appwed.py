@@ -1,212 +1,360 @@
-import streamlit as st
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
+import pandas as pd
+import streamlit as st
 
-# Configuración de página para Celular / Web
-st.set_page_config(page_title="Pilo POS Mobile", page_icon="🍕", layout="wide")
+# ==========================================
+# CONFIGURACIÓN DE SEGURIDAD
+# ==========================================
+PIN_ADMIN = "200423"  # Cambia esta clave si deseas
 
-# --- BASE DE DATOS Y CARTA ---
-def inicializar_bd():
-    conexion = sqlite3.connect("base_datos.db")
-    cursor = conexion.cursor()
-    cursor.execute("""
+
+# ==========================================
+# BASE DE DATOS Y TABLAS
+# ==========================================
+def init_db():
+    conn = sqlite3.connect("pos_restaurante.db")
+    c = conn.cursor()
+
+    c.execute(
+        """
         CREATE TABLE IF NOT EXISTS productos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nombre TEXT NOT NULL,
-            categoria TEXT DEFAULT 'Otros',
             precio REAL NOT NULL,
-            stock INTEGER DEFAULT 50,
-            tipo TEXT DEFAULT ''
-        );
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS ventas (
+            categoria TEXT NOT NULL
+        )
+    """
+    )
+
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS pedidos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            producto_id INTEGER,
-            cantidad INTEGER,
+            cliente TEXT,
+            tipo TEXT,
             total REAL,
-            metodo_pago TEXT,
-            fecha TEXT
-        );
-    """)
+            fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """
+    )
 
-    carta_pilo = [
-        ("Pizza Americana Personal", "Pizzas", 25.00, 50, "Personal"),
-        ("Pizza Hawaiana Personal", "Pizzas", 25.00, 50, "Personal"),
-        ("Pizza Peperoni Personal", "Pizzas", 25.00, 50, "Personal"),
-        ("Pizza Pilo Personal", "Pizzas", 28.00, 50, "Personal"),
-        ("Pizza Americana Familiar", "Pizzas", 45.00, 50, "Familiar"),
-        ("Pizza Hawaiana Familiar", "Pizzas", 45.00, 50, "Familiar"),
-        ("Pizza Peperoni Familiar", "Pizzas", 45.00, 50, "Familiar"),
-        ("Pizza Pilo Familiar", "Pizzas", 50.00, 50, "Familiar"),
-        ("Alitas Rebozadas", "Alitas", 20.00, 50, "Porción"),
-        ("Alitas BBQ", "Alitas", 22.00, 50, "Porción"),
-        ("Alitas Acevichadas", "Alitas", 22.00, 50, "Porción"),
-        ("Alitas Búfalo", "Alitas", 22.00, 50, "Porción"),
-        ("Alitas Pilo", "Alitas", 24.00, 50, "Porción"),
-        ("Hamburguesa Clásica", "Hamburguesas", 6.00, 50, "Clásica"),
-        ("Hamburguesa Hawaiana", "Hamburguesas", 8.00, 50, "Hawaiana"),
-        ("Hamburguesa Pilo", "Hamburguesas", 9.00, 50, "Pilo"),
-        ("Hamburguesa A lo pobre", "Hamburguesas", 10.00, 50, "A lo pobre"),
-        ("Hamburguesa Royal", "Hamburguesas", 14.00, 50, "Royal"),
-        ("Hamburguesa Mega Pilo", "Hamburguesas", 16.00, 50, "Mega Pilo"),
-        ("Choripan", "Entradas", 6.00, 50, "Tradicional"),
-        ("Salchipapa Clásica", "Entradas", 8.00, 50, "Clásica"),
-        ("Salchialita", "Entradas", 16.00, 50, "Especial"),
-        ("Porción de Papa", "Otros", 5.00, 100, "Extra"),
-        ("Porción de Maduro", "Otros", 5.00, 100, "Extra"),
-        ("Porción de Alitas (x ud)", "Otros", 4.00, 100, "Extra"),
-        ("Porción de Salchicha", "Otros", 3.00, 100, "Extra"),
-        ("Carne de Hamburguesa", "Otros", 4.00, 100, "Extra"),
-        ("Porción de Huevo", "Otros", 1.00, 100, "Extra"),
-        ("Jamón y Tocino", "Otros", 2.00, 100, "Extra"),
-        ("Porción de Piña", "Otros", 1.00, 100, "Extra"),
-        ("Queso Hamburguesa", "Otros", 1.00, 100, "Extra"),
-        ("Queso Pizza", "Otros", 3.00, 100, "Extra"),
-        ("Agua Mineral", "Otros", 2.00, 100, "Bebida"),
-        ("Agua Mineral San Luis", "Otros", 3.00, 100, "Bebida"),
-        ("Inca Kola", "Otros", 5.00, 100, "Bebida"),
-        ("Coca Cola", "Otros", 5.00, 100, "Bebida"),
-        ("Chicha Morada", "Otros", 3.00, 100, "Bebida"),
-        ("Cocina", "Otros", 3.00, 100, "Bebida")
-    ]
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS detalles_pedido (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pedido_id INTEGER,
+            producto TEXT,
+            cantidad INTEGER,
+            precio_unitario REAL,
+            subtotal REAL,
+            FOREIGN KEY (pedido_id) REFERENCES pedidos (id)
+        )
+    """
+    )
 
-    for p in carta_pilo:
-        cursor.execute("SELECT id FROM productos WHERE nombre = ?;", (p[0],))
-        if not cursor.fetchone():
-            cursor.execute("INSERT INTO productos (nombre, categoria, precio, stock, tipo) VALUES (?, ?, ?, ?, ?);", p)
-        else:
-            cursor.execute("UPDATE productos SET categoria = ?, precio = ?, stock = ?, tipo = ? WHERE nombre = ?;", (p[1], p[2], p[3], p[4], p[0]))
+    c.execute("SELECT COUNT(*) FROM productos")
+    if c.fetchone()[0] == 0:
+        menu_inicial = [
+            ("Alitas 6 Pzs", 15.0, "Alitas"),
+            ("Alitas 12 Pzs", 28.0, "Alitas"),
+            ("Alitas 18 Pzs", 40.0, "Alitas"),
+            ("Gaseosa 500ml", 4.0, "Bebidas"),
+            ("Chicha Morada 1L", 10.0, "Bebidas"),
+            ("Agua Mineral", 3.0, "Bebidas"),
+            ("Papas Fritas", 8.0, "Extras"),
+            ("Cerveza Personal", 7.0, "Extras"),
+        ]
+        c.executemany(
+            "INSERT INTO productos (nombre, precio, categoria) VALUES (?, ?, ?)",
+            menu_inicial,
+        )
 
-    conexion.commit()
-    conexion.close()
+    conn.commit()
+    conn.close()
 
-inicializar_bd()
 
-# --- ESTADOS DE SESIÓN ---
-if "caja_abierta" not in st.session_state:
-    st.session_state.caja_abierta = False
-if "monto_apertura" not in st.session_state:
-    st.session_state.monto_apertura = 0.0
+init_db()
+
+# ==========================================
+# CONFIGURACIÓN DE PÁGINA
+# ==========================================
+st.set_page_config(page_title="PiloPOS", page_icon="🍗", layout="wide")
+
+st.markdown(
+    """
+    <style>
+    .stButton>button { width: 100%; height: 3em; font-weight: bold; }
+    .total-box { background-color: #f0f2f6; padding: 15px; border-radius: 10px; text-align: center; font-size: 24px; font-weight: bold; color: #1f77b4; }
+    </style>
+""",
+    unsafe_allow_html=True,
+)
+
 if "carrito" not in st.session_state:
     st.session_state.carrito = []
 
-CLAVE_CAJA = "200423"
+st.title("🍗 piloPOS - Sistema de Ventas")
 
-# --- INTERFAZ DE USUARIO ---
-st.title("🍔 Pilo POS - Punto de Venta")
+# ==========================================
+# PESTAÑAS PRINCIPALES
+# ==========================================
+tab_pos, tab_cierre, tab_mensual = st.tabs(
+    ["🛒 Punto de Venta", "🔒 Cierre del Turno (12pm-12pm)", "📊 Reporte Mensual"]
+)
 
-# Barra Superior / Control de Caja
-col_caja1, col_caja2 = st.columns([2, 1])
-
-with col_caja1:
-    if st.session_state.caja_abierta:
-        st.success(f"🟢 Caja ABIERTA (Monto inicial: S/ {st.session_state.monto_apertura:.2f})")
-    else:
-        st.error("🔴 Caja CERRADA")
-
-with col_caja2:
-    if not st.session_state.caja_abierta:
-        with st.popover("🔓 Abrir Caja"):
-            clave = st.text_input("Contraseña:", type="password")
-            monto = st.number_input("Monto Inicial S/", min_value=0.0, step=10.0)
-            if st.button("Confirmar Apertura"):
-                if clave == CLAVE_CAJA:
-                    st.session_state.caja_abierta = True
-                    st.session_state.monto_apertura = monto
-                    st.rerun()
-                else:
-                    st.error("Clave incorrecta")
-    else:
-        if st.button("🔒 Cerrar Caja"):
-            st.session_state.caja_abierta = False
-            st.session_state.carrito = []
-            st.rerun()
-
-st.divider()
-
-# --- PESTAÑAS Y CARRITO ---
-tab1, tab2 = st.tabs(["🛒 TOMAR PEDIDO", "📊 VER VENTAS DEL DÍA"])
-
-with tab1:
-    col_menu, col_carrito = st.columns([3, 2])
+# ------------------------------------------
+# TAB 1: PUNTO DE VENTA
+# ------------------------------------------
+with tab_pos:
+    col_menu, col_orden = st.columns([3, 2])
 
     with col_menu:
-        cat_sel = st.radio("Categorías:", ["Pizzas", "Alitas", "Hamburguesas", "Entradas", "Otros"], horizontal=True)
-        
-        conexion = sqlite3.connect("base_datos.db")
-        cursor = conexion.cursor()
-        cursor.execute("SELECT id, nombre, precio FROM productos WHERE categoria = ?;", (cat_sel,))
-        prods = cursor.fetchall()
-        conexion.close()
+        st.subheader("Menú de Productos")
 
-        cols_grid = st.columns(2)
-        for idx, (p_id, p_nom, p_pre) in enumerate(prods):
-            with cols_grid[idx % 2]:
-                if st.button(f"{p_nom}\nS/ {p_pre:.2f}", key=f"p_{p_id}", use_container_width=True):
-                    if not st.session_state.caja_abierta:
-                        st.warning("Abre caja primero con la clave.")
-                    else:
-                        # Agregar al carrito
-                        encontrado = False
-                        for item in st.session_state.carrito:
-                            if item["id"] == p_id:
-                                item["cant"] += 1
-                                item["sub"] = item["cant"] * p_pre
-                                encontrado = True
-                                break
-                        if not encontrado:
-                            st.session_state.carrito.append({"id": p_id, "nom": p_nom, "pre": p_pre, "cant": 1, "sub": p_pre})
-                        st.rerun()
+        conn = sqlite3.connect("pos_restaurante.db")
+        df_prod = pd.read_sql_query("SELECT * FROM productos", conn)
+        conn.close()
 
-    with col_carrito:
-        st.subheader("🛒 Carrito")
-        total_pago = 0.0
-        
-        if st.session_state.carrito:
-            for i, item in enumerate(st.session_state.carrito):
-                c1, c2 = st.columns([3, 1])
-                c1.write(f"**{item['cant']}x** {item['nom']} - S/ {item['sub']:.2f}")
-                if c2.button("❌", key=f"del_{i}"):
-                    st.session_state.carrito.pop(i)
+        categorias = df_prod["categoria"].unique()
+        cat_seleccionada = st.radio("Categorías", categorias, horizontal=True)
+
+        prods_cat = df_prod[df_prod["categoria"] == cat_seleccionada]
+
+        cols_p = st.columns(2)
+        for idx, row in prods_cat.iterrows():
+            col_idx = idx % 2
+            with cols_p[col_idx]:
+                if st.button(
+                    f"{row['nombre']}\nS/ {row['precio']:.2f}", key=row["id"]
+                ):
+                    st.session_state.carrito.append(
+                        {
+                            "id": row["id"],
+                            "nombre": row["nombre"],
+                            "precio": row["precio"],
+                        }
+                    )
+                    st.toast(f"¡{row['nombre']} agregado!", icon="✅")
+
+    with col_orden:
+        st.subheader("Detalle del Pedido")
+
+        nombre_cliente = st.text_input(
+            "Nombre del Cliente / Mesa", placeholder="Ej: Mesa 3 o Juan"
+        )
+        tipo_pedido = st.selectbox(
+            "Tipo de Pedido", ["Para Comer Aquí", "Para Llevar", "Delivery"]
+        )
+
+        if len(st.session_state.carrito) > 0:
+            df_cart = pd.DataFrame(st.session_state.carrito)
+            resumen = (
+                df_cart.groupby(["nombre", "precio"])
+                .size()
+                .reset_index(name="cantidad")
+            )
+            resumen["subtotal"] = resumen["precio"] * resumen["cantidad"]
+
+            st.dataframe(
+                resumen[["nombre", "cantidad", "precio", "subtotal"]],
+                use_container_width=True,
+                hide_index=True,
+            )
+
+            total_pagar = resumen["subtotal"].sum()
+            st.markdown(
+                f'<div class="total-box">TOTAL: S/ {total_pagar:.2f}</div>',
+                unsafe_allow_html=True,
+            )
+
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1:
+                if st.button("🔴 Borrar Todo"):
+                    st.session_state.carrito = []
                     st.rerun()
-                total_pago += item["sub"]
-            
-            st.markdown(f"### TOTAL: S/ {total_pago:.2f}")
-            
-            metodo = st.selectbox("Método de Pago:", ["Efectivo", "Yape", "Plin"])
-            
-            if st.button("💵 COBRAR", type="primary", use_container_width=True):
-                fec = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                conexion = sqlite3.connect("base_datos.db")
-                cursor = conexion.cursor()
-                for item in st.session_state.carrito:
-                    cursor.execute("INSERT INTO ventas (producto_id, cantidad, total, metodo_pago, fecha) VALUES (?, ?, ?, ?, ?);", 
-                                   (item["id"], item["cant"], item["sub"], metodo, fec))
-                conexion.commit()
-                conexion.close()
-                st.session_state.carrito = []
-                st.success(f"¡Venta registrada con {metodo}!")
-                st.rerun()
+
+            with col_btn2:
+                if st.button("🟢 REGISTRAR PEDIDO", type="primary"):
+                    conn = sqlite3.connect("pos_restaurante.db")
+                    c = conn.cursor()
+
+                    # Guardar fecha exacta con hora actual
+                    fecha_actual = datetime.now().strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+
+                    c.execute(
+                        "INSERT INTO pedidos (cliente, tipo, total, fecha) VALUES (?, ?, ?, ?)",
+                        (
+                            nombre_cliente
+                            if nombre_cliente
+                            else "Cliente General",
+                            tipo_pedido,
+                            total_pagar,
+                            fecha_actual,
+                        ),
+                    )
+                    pedido_id = c.lastrowid
+
+                    for _, row in resumen.iterrows():
+                        c.execute(
+                            """
+                            INSERT INTO detalles_pedido (pedido_id, producto, cantidad, precio_unitario, subtotal)
+                            VALUES (?, ?, ?, ?, ?)
+                        """,
+                            (
+                                pedido_id,
+                                row["nombre"],
+                                row["cantidad"],
+                                row["precio"],
+                                row["subtotal"],
+                            ),
+                        )
+
+                    conn.commit()
+                    conn.close()
+
+                    st.session_state.carrito = []
+                    st.success(f"¡Pedido #{pedido_id} registrado con éxito!")
+                    st.rerun()
         else:
-            st.info("El carrito está vacío.")
+            st.info(
+                "El carrito está vacío. Haz clic en los productos para agregarlos."
+            )
 
-with tab2:
-    st.subheader("Reporte de Ventas")
-    hoy = datetime.now().strftime("%Y-%m-%d")
-    conexion = sqlite3.connect("base_datos.db")
-    cursor = conexion.cursor()
-    cursor.execute("""
-        SELECT v.id, p.nombre, v.cantidad, v.total, v.metodo_pago, v.fecha 
-        FROM ventas v LEFT JOIN productos p ON v.producto_id = p.id 
-        WHERE DATE(v.fecha) = ? ORDER BY v.id DESC;
-    """, (hoy,))
-    rows = cursor.fetchall()
-    conexion.close()
+# ------------------------------------------
+# TAB 2: CIERRE DE TURNO NOCTURNO (12:00 PM a 11:59 AM)
+# ------------------------------------------
+with tab_cierre:
+    st.subheader("🔒 Cierre del Turno Operativo")
 
-    if rows:
-        total_dia = sum(r[3] for r in rows)
-        st.metric("Total Recaudado Hoy", f"S/ {total_dia:.2f}")
-        st.dataframe(rows, column_config={"0": "ID", "1": "Producto", "2": "Cant", "3": "Total", "4": "Método", "5": "Fecha"})
-    else:
-        st.write("No hay ventas registradas hoy.")
+    pin_ingresado = st.text_input(
+        "Ingresa la contraseña para ver las ventas del turno:",
+        type="password",
+        key="pin_turno",
+    )
+
+    if pin_ingresado == PIN_ADMIN:
+        st.success("Acceso Autorizado.")
+
+        # Cálculo del Rango Operativo (12:00 PM del día actual/anterior hasta 11:59 AM del día siguiente)
+        ahora = datetime.now()
+        if ahora.hour < 12:
+            inicio_turno = (ahora - timedelta(days=1)).replace(
+                hour=12, minute=0, second=0
+            )
+            fin_turno = ahora.replace(
+                hour=11, minute=59, second=59
+            )
+        else:
+            inicio_turno = ahora.replace(
+                hour=12, minute=0, second=0
+            )
+            fin_turno = (ahora + timedelta(days=1)).replace(
+                hour=11, minute=59, second=59
+            )
+
+        st.info(
+            f"📅 **Turno Actual:** Desde `{inicio_turno.strftime('%d/%m/%Y %I:%M %p')}` Hasta `{fin_turno.strftime('%d/%m/%Y %I:%M %p')}`"
+        )
+
+        conn = sqlite3.connect("pos_restaurante.db")
+        df_pedidos = pd.read_sql_query(
+            """
+            SELECT * FROM pedidos 
+            WHERE fecha >= ? AND fecha <= ?
+        """,
+            conn,
+            params=(
+                inicio_turno.strftime("%Y-%m-%d %H:%M:%S"),
+                fin_turno.strftime("%Y-%m-%d %H:%M:%S"),
+            ),
+        )
+
+        if not df_pedidos.empty:
+            pedidos_ids = tuple(df_pedidos["id"].tolist())
+            query_detalles = f"SELECT * FROM detalles_pedido WHERE pedido_id IN ({','.join(['?']*len(pedidos_ids))})"
+            df_detalles = pd.read_sql_query(
+                query_detalles, conn, params=pedidos_ids
+            )
+        else:
+            df_detalles = pd.DataFrame()
+
+        conn.close()
+
+        if not df_pedidos.empty:
+            total_ventas = df_pedidos["total"].sum()
+            cant_pedidos = len(df_pedidos)
+
+            c1, c2 = st.columns(2)
+            c1.metric("Total Cobrado en Turno", f"S/ {total_ventas:.2f}")
+            c2.metric("Pedidos Atendidos", cant_pedidos)
+
+            st.write("---")
+            st.subheader("Productos Vendidos en este Turno")
+            resumen_prod = (
+                df_detalles.groupby("producto")["cantidad"]
+                .sum()
+                .reset_index()
+            )
+            st.dataframe(
+                resumen_prod, use_container_width=True, hide_index=True
+            )
+
+            st.write("---")
+            st.subheader("Detalle de Pedidos del Turno")
+            st.dataframe(
+                df_pedidos[["id", "cliente", "tipo", "total", "fecha"]],
+                use_container_width=True,
+                hide_index=True,
+            )
+        else:
+            st.warning("No hay registros de ventas para el turno en curso.")
+
+# ------------------------------------------
+# TAB 3: CONTROL Y REPORTE MENSUAL
+# ------------------------------------------
+with tab_mensual:
+    st.subheader("📊 Historial de Ventas Mensuales")
+
+    pin_mensual = st.text_input(
+        "Ingresa la contraseña de administrador para ver reportes generales:",
+        type="password",
+        key="pin_mes",
+    )
+
+    if pin_mensual == PIN_ADMIN:
+        st.success("Acceso Autorizado.")
+
+        conn = sqlite3.connect("pos_restaurante.db")
+        df_todas = pd.read_sql_query("SELECT * FROM pedidos", conn)
+        conn.close()
+
+        if not df_todas.empty:
+            df_todas["fecha_dt"] = pd.to_datetime(df_todas["fecha"])
+            df_todas["Mes_Año"] = df_todas["fecha_dt"].dt.strftime("%Y-%m")
+
+            meses_disponibles = df_todas["Mes_Año"].unique()
+            mes_sel = st.selectbox(
+                "Selecciona el Mes a consultar:", meses_disponibles
+            )
+
+            df_mes = df_todas[df_todas["Mes_Año"] == mes_sel]
+
+            total_mes = df_mes["total"].sum()
+            total_pedidos_mes = len(df_mes)
+
+            m1, m2 = st.columns(2)
+            m1.metric(f"Venta Total ({mes_sel})", f"S/ {total_mes:.2f}")
+            m2.metric("Total Pedidos del Mes", total_pedidos_mes)
+
+            st.write("---")
+            st.subheader("Listado de Ventas del Mes")
+            st.dataframe(
+                df_mes[["id", "cliente", "tipo", "total", "fecha"]],
+                use_container_width=True,
+                hide_index=True,
+            )
+        else:
+            st.info("Aún no hay ventas acumuladas en la base de datos.")
