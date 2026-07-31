@@ -9,32 +9,32 @@ st.set_page_config(page_title="Pilo POS Tablet", page_icon="🍗", layout="wide"
 PIN_ADMIN = "200423"
 DB_NAME = "pos_v6.db"
 
-# Estado de sesión para categoría seleccionada
+# Estado de sesión
 if "cat_seleccionada" not in st.session_state:
     st.session_state.cat_seleccionada = "Pizzas"
 
-# Definición de colores por categoría
+# Paleta de Colores
 COLORES = {
-    "Pizzas": "#2b5c8f",        # Azul
-    "Alitas": "#c69214",        # Amarillo
-    "Hamburguesas": "#d97724",  # Naranja
-    "Entradas": "#2e7d32",      # Verde
-    "Otros": "#38bdf8"          # Celeste claro
+    "Pizzas": {"bg": "#2b5c8f", "text": "white"},        # Azul
+    "Alitas": {"bg": "#c69214", "text": "white"},        # Amarillo
+    "Hamburguesas": {"bg": "#d97724", "text": "white"},  # Naranja
+    "Entradas": {"bg": "#2e7d32", "text": "white"},      # Verde
+    "Otros": {"bg": "#38bdf8", "text": "#0f172a"}        # Celeste claro (texto oscuro)
 }
 
-# Obtener color actual del menú de productos
-color_producto_actual = COLORES.get(st.session_state.cat_seleccionada, "#2b5c8f")
-color_texto_prod = "#0f172a" if st.session_state.cat_seleccionada == "Otros" else "#ffffff"
+# Obtener color para los productos actuales según categoría activa
+bg_prod = COLORES[st.session_state.cat_seleccionada]["bg"]
+text_prod = COLORES[st.session_state.cat_seleccionada]["text"]
 
-# CSS Inyectado dinámico
+# Inyección CSS con máxima prioridad (!important) usando claves directas de Streamlit
 st.markdown(f"""
     <style>
-    /* Tamaño base de texto */
+    /* Ajuste de fuente base */
     html, body, [class*="css"] {{
         font-size: 17px !important;
     }}
 
-    /* Estilo general para todos los botones */
+    /* Estilos generales de todos los botones */
     div.stButton > button {{
         font-weight: bold !important;
         font-size: 18px !important;
@@ -44,49 +44,28 @@ st.markdown(f"""
         box-shadow: 0px 3px 6px rgba(0,0,0,0.3) !important;
     }}
 
-    /* BOTONES DE CATEGORÍAS (SUPERIORES) */
-    /* 🍕 Pizzas */
-    div[data-testid="stHorizontalBlock"] > div:nth-child(1) div.stButton > button {{
-        background-color: #2b5c8f !important;
-        color: white !important;
-    }}
-    /* 🍗 Alitas */
-    div[data-testid="stHorizontalBlock"] > div:nth-child(2) div.stButton > button {{
-        background-color: #c69214 !important;
-        color: white !important;
-    }}
-    /* 🍔 Hamburguesas */
-    div[data-testid="stHorizontalBlock"] > div:nth-child(3) div.stButton > button {{
-        background-color: #d97724 !important;
-        color: white !important;
-    }}
-    /* 🍟 Entradas */
-    div[data-testid="stHorizontalBlock"] > div:nth-child(4) div.stButton > button {{
-        background-color: #2e7d32 !important;
-        color: white !important;
-    }}
-    /* 🥤 Otros */
-    div[data-testid="stHorizontalBlock"] > div:nth-child(5) div.stButton > button {{
-        background-color: #38bdf8 !important;
-        color: #0f172a !important;
+    /* --- BOTONES DE CATEGORÍAS (ENCABEZADOS) --- */
+    div[data-testid="stColumn"]:nth-child(1) div.stButton > button {{ background-color: #2b5c8f !important; color: white !important; }}
+    div[data-testid="stColumn"]:nth-child(2) div.stButton > button {{ background-color: #c69214 !important; color: white !important; }}
+    div[data-testid="stColumn"]:nth-child(3) div.stButton > button {{ background-color: #d97724 !important; color: white !important; }}
+    div[data-testid="stColumn"]:nth-child(4) div.stButton > button {{ background-color: #2e7d32 !important; color: white !important; }}
+    div[data-testid="stColumn"]:nth-child(5) div.stButton > button {{ background-color: #38bdf8 !important; color: #0f172a !important; }}
+
+    /* --- PRODUCTOS (Pinta TODOS del mismo color de la categoría activa) --- */
+    div[data-testid="stElementContainer"]:has(div.stButton) button {{
+        background-color: {bg_prod} !important;
+        color: {text_prod} !important;
     }}
 
-    /* PRODUCTOS DEL MENÚ (Se pintan del color de la categoría activa) */
-    .menu-container div.stButton > button {{
-        background-color: {color_producto_actual} !important;
-        color: {color_texto_prod} !important;
-    }}
-
-    /* Botón Cobrar */
-    .btn-cobrar div.stButton > button {{
+    /* --- EXCEPCIONES: BOTONES COBRAR Y VACIAR --- */
+    div[data-testid="stKey-btn_cobrar"] button {{
         background-color: #2e7d32 !important;
         color: white !important;
         font-size: 20px !important;
         height: 3.2em !important;
     }}
 
-    /* Botón Vaciar */
-    .btn-vaciar div.stButton > button {{
+    div[data-testid="stKey-btn_vaciar"] button {{
         background-color: #1e3a8a !important;
         color: white !important;
     }}
@@ -220,8 +199,8 @@ with tab1:
         
         st.write("### Categorías:")
         cols_cat = st.columns(5)
-        
         categorias = ["Pizzas", "Alitas", "Hamburguesas", "Entradas", "Otros"]
+        
         for idx, cat in enumerate(categorias):
             with cols_cat[idx]:
                 if st.button(cat, key=f"cat_btn_{cat}", use_container_width=True):
@@ -241,20 +220,15 @@ with tab1:
             
             st.subheader(f"Menú: {st.session_state.cat_seleccionada}")
             
-            # Contenedor con clase CSS especial 'menu-container'
-            with st.container():
-                st.markdown('<div class="menu-container">', unsafe_allow_html=True)
-                m_col1, m_col2 = st.columns(2)
-                
-                for i, (p_id, p_nom, p_precio) in enumerate(prods):
-                    col = m_col1 if i % 2 == 0 else m_col2
-                    with col:
-                        if st.button(f"{p_nom}\nS/ {p_precio:.2f}", key=f"p_{p_id}", use_container_width=True):
-                            if "carrito" not in st.session_state:
-                                st.session_state.carrito = []
-                            st.session_state.carrito.append({"id": p_id, "nombre": p_nom, "precio": p_precio})
-                            st.toast(f"＋ {p_nom}")
-                st.markdown('</div>', unsafe_allow_html=True)
+            m_col1, m_col2 = st.columns(2)
+            for i, (p_id, p_nom, p_precio) in enumerate(prods):
+                col = m_col1 if i % 2 == 0 else m_col2
+                with col:
+                    if st.button(f"{p_nom}\nS/ {p_precio:.2f}", key=f"p_{p_id}", use_container_width=True):
+                        if "carrito" not in st.session_state:
+                            st.session_state.carrito = []
+                        st.session_state.carrito.append({"id": p_id, "nombre": p_nom, "precio": p_precio})
+                        st.toast(f"＋ {p_nom}")
 
         with col_carrito:
             st.subheader("🛒 Pedido Actual")
@@ -277,8 +251,7 @@ with tab1:
                     digital_part = total - efectivo_part
                     st.write(f"📲 Yape/Plin restante: **S/ {digital_part:.2f}**")
                 
-                st.markdown('<div class="btn-cobrar">', unsafe_allow_html=True)
-                if st.button("🚀 COBRAR (Registrar Venta)", use_container_width=True):
+                if st.button("🚀 COBRAR (Registrar Venta)", key="btn_cobrar", use_container_width=True):
                     conn = sqlite3.connect(DB_NAME)
                     c = conn.cursor()
                     fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -289,13 +262,10 @@ with tab1:
                     st.session_state.carrito = []
                     st.success(f"¡Venta Registrada! ({metodo_pago})")
                     st.rerun()
-                st.markdown('</div>', unsafe_allow_html=True)
                     
-                st.markdown('<div class="btn-vaciar">', unsafe_allow_html=True)
-                if st.button("🗑️ Vaciar Carrito", use_container_width=True):
+                if st.button("🗑️ Vaciar Carrito", key="btn_vaciar", use_container_width=True):
                     st.session_state.carrito = []
                     st.rerun()
-                st.markdown('</div>', unsafe_allow_html=True)
             else:
                 st.info("El carrito está vacío.")
 
