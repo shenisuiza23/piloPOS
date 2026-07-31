@@ -489,4 +489,9 @@ with tab4:
         conn.close()
 
         if not df_ventas.empty:
-            total_ventas = df_ventas["t
+            total_ventas = df_ventas["total"])
+    else:
+        st.info("No hay datos de ventas registrados para generar repostes.")
+elif clave_rep:
+    st.error("contraseña incorrecta")
+            
