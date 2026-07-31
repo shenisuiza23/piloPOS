@@ -3,37 +3,60 @@ import sqlite3
 import pandas as pd
 from datetime import datetime
 
-# Configuración de la página
-st.set_page_config(page_title="Pilo POS Mobile", page_icon="🍗", layout="wide")
+# Configuración de la página optimizada para pantallas táctiles/tablets
+st.set_page_config(page_title="Pilo POS Tablet", page_icon="🍗", layout="wide", initial_sidebar_state="collapsed")
 
 PIN_ADMIN = "200423"
 DB_NAME = "pos_v5.db"
 
-# Estilos personalizados (Botones naranjas para categorías, verde para cobrar)
+# Estilos CSS diseñados para pantallas táctiles (tablets y celulares)
 st.markdown("""
     <style>
-    /* Botones de Categorías estilo Cuadrado Naranja */
+    /* Aumentar tamaño general de texto e inputs para pantallas táctiles */
+    html, body, [class*="css"] {
+        font-size: 18px !important;
+    }
+    
+    /* Botones de menú táctiles grandes */
     div.stButton > button {
         background-color: #FF8C00 !important;
         color: white !important;
         font-weight: bold !important;
-        border-radius: 8px !important;
+        font-size: 18px !important;
+        border-radius: 12px !important;
+        padding: 12px 10px !important;
         border: none !important;
+        margin-bottom: 8px !important;
+        box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.2) !important;
+    }
+    
+    /* Efecto al presionar botón */
+    div.stButton > button:active {
+        transform: scale(0.97) !important;
     }
     
     /* Botón verde grande para Registrar Venta */
     .btn-cobrar > div.stButton > button {
         background-color: #28a745 !important;
         color: white !important;
-        font-size: 20px !important;
+        font-size: 22px !important;
         font-weight: bold !important;
-        height: 3.2em !important;
-        border-radius: 10px !important;
+        height: 3.5em !important;
+        border-radius: 14px !important;
+        box-shadow: 0px 5px 10px rgba(40, 167, 69, 0.4) !important;
+    }
+    
+    /* Radio buttons para Método de Pago más amplios */
+    div[role="radiogroup"] > label {
+        padding: 8px 16px !important;
+        background-color: #1e2229 !important;
+        border-radius: 8px !important;
+        margin-right: 8px !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- BASE DE DATOS CON TU MENÚ REAL ---
+# --- BASE DE DATOS Y MENÚ COMPLETO ---
 def inicializar_bd():
     conexion = sqlite3.connect(DB_NAME)
     cursor = conexion.cursor()
@@ -119,7 +142,7 @@ def inicializar_bd():
 inicializar_bd()
 
 # --- NAVEGACIÓN ---
-st.title("🍗 piloPOS - Sistema de Ventas")
+st.title("🍗 piloPOS - Tablet POS")
 
 tab1, tab2, tab3, tab4 = st.tabs([
     "🛒 Punto de Venta", 
@@ -139,11 +162,11 @@ with tab1:
     conn.close()
 
     if not caja_activa:
-        st.warning("⚠️ La caja está CERRADA. Ingresa la contraseña y monto para abrir caja e iniciar las ventas.")
+        st.warning("⚠️ La caja está CERRADA. Ingresa contraseña y monto inicial para empezar.")
         clave_apertura = st.text_input("Contraseña de Apertura", type="password", key="pass_open")
         monto_ini = st.number_input("Monto Inicial en Caja (S/):", min_value=0.0, value=0.0, step=5.0)
         
-        if st.button("🔓 ABRIR CAJA E INICIAR VENTAS"):
+        if st.button("🔓 ABRIR CAJA E INICIAR VENTAS", use_container_width=True):
             if clave_apertura == PIN_ADMIN:
                 conn = sqlite3.connect(DB_NAME)
                 c = conn.cursor()
@@ -158,14 +181,14 @@ with tab1:
     else:
         st.success(f"🟢 Caja Abierta con S/ {caja_activa[1]:.2f}")
         
-        # Obtener categorías existentes en la BD
+        # Obtener categorías
         conn = sqlite3.connect(DB_NAME)
         c = conn.cursor()
         c.execute("SELECT DISTINCT categoria FROM productos")
         cats = [row[0] for row in c.fetchall()]
         conn.close()
 
-        st.write("### Categorías:")
+        st.write("### Selecciona Categoría:")
         if "cat_seleccionada" not in st.session_state or st.session_state.cat_seleccionada not in cats:
             st.session_state.cat_seleccionada = cats[0] if cats else "Alitas"
             
@@ -176,53 +199,57 @@ with tab1:
 
         st.markdown("---")
         
-        # Obtener productos de la categoría elegida
-        conn = sqlite3.connect(DB_NAME)
-        c = conn.cursor()
-        c.execute("SELECT id, nombre, precio FROM productos WHERE categoria = ?", (st.session_state.cat_seleccionada,))
-        prods = c.fetchall()
-        conn.close()
+        # Layout dividido para Tablet: Menú a la izquierda (60%) y Carrito a la derecha (40%)
+        col_menu, col_carrito = st.columns([1.3, 1])
         
-        st.subheader(f"Menú: {st.session_state.cat_seleccionada}")
-        col1, col2 = st.columns(2)
-        for i, (p_id, p_nom, p_precio) in enumerate(prods):
-            col = col1 if i % 2 == 0 else col2
-            if col.button(f"{p_nom}\nS/ {p_precio:.2f}", key=f"p_{p_id}", use_container_width=True):
-                if "carrito" not in st.session_state:
-                    st.session_state.carrito = []
-                st.session_state.carrito.append({"id": p_id, "nombre": p_nom, "precio": p_precio})
-                st.toast(f"Agregado: {p_nom}")
-
-        st.markdown("---")
-        metodo_pago = st.radio("Método de Pago", ["Efectivo", "Yape", "Plin"], horizontal=True)
-        
-        if "carrito" in st.session_state and st.session_state.carrito:
-            st.write("### Productos seleccionados:")
-            for item in st.session_state.carrito:
-                st.write(f"- {item['nombre']} (S/ {item['precio']:.2f})")
-                
-            total = sum(item["precio"] for item in st.session_state.carrito)
-            st.markdown(f"## **Total a cobrar: S/ {total:.2f}**")
+        with col_menu:
+            conn = sqlite3.connect(DB_NAME)
+            c = conn.cursor()
+            c.execute("SELECT id, nombre, precio FROM productos WHERE categoria = ?", (st.session_state.cat_seleccionada,))
+            prods = c.fetchall()
+            conn.close()
             
-            st.markdown('<div class="btn-cobrar">', unsafe_allow_html=True)
-            if st.button("🚀 REGISTRAR VENTA", use_container_width=True):
-                conn = sqlite3.connect(DB_NAME)
-                c = conn.cursor()
-                fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                c.execute("INSERT INTO ventas (total, metodo, fecha) VALUES (?, ?, ?)",
-                          (total, metodo_pago, fecha_actual))
-                conn.commit()
-                conn.close()
-                st.session_state.carrito = []
-                st.success(f"¡Venta Registrada! ({metodo_pago})")
-                st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
+            st.subheader(f"Menú: {st.session_state.cat_seleccionada}")
+            m_col1, m_col2 = st.columns(2)
+            for i, (p_id, p_nom, p_precio) in enumerate(prods):
+                col = m_col1 if i % 2 == 0 else m_col2
+                if col.button(f"{p_nom}\nS/ {p_precio:.2f}", key=f"p_{p_id}", use_container_width=True):
+                    if "carrito" not in st.session_state:
+                        st.session_state.carrito = []
+                    st.session_state.carrito.append({"id": p_id, "nombre": p_nom, "precio": p_precio})
+                    st.toast(f"＋ {p_nom}")
+
+        with col_carrito:
+            st.subheader("🛒 Pedido Actual")
+            metodo_pago = st.radio("Método de Pago:", ["Efectivo", "Yape", "Plin"], horizontal=True)
+            st.markdown("---")
+            
+            if "carrito" in st.session_state and st.session_state.carrito:
+                for item in st.session_state.carrito:
+                    st.write(f"• **{item['nombre']}** — S/ {item['precio']:.2f}")
+                    
+                total = sum(item["precio"] for item in st.session_state.carrito)
+                st.markdown(f"### **Total: S/ {total:.2f}**")
                 
-            if st.button("🗑️ Vaciar Carrito", use_container_width=True):
-                st.session_state.carrito = []
-                st.rerun()
-        else:
-            st.info("El carrito está vacío. Elige un producto arriba.")
+                st.markdown('<div class="btn-cobrar">', unsafe_allow_html=True)
+                if st.button("🚀 REGISTRAR VENTA", use_container_width=True):
+                    conn = sqlite3.connect(DB_NAME)
+                    c = conn.cursor()
+                    fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    c.execute("INSERT INTO ventas (total, metodo, fecha) VALUES (?, ?, ?)",
+                              (total, metodo_pago, fecha_actual))
+                    conn.commit()
+                    conn.close()
+                    st.session_state.carrito = []
+                    st.success(f"¡Venta Registrada! ({metodo_pago})")
+                    st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
+                    
+                if st.button("🗑️ Vaciar Carrito", use_container_width=True):
+                    st.session_state.carrito = []
+                    st.rerun()
+            else:
+                st.info("Toca un producto de la izquierda para agregarlo.")
 
 # ---------------------------------------------------------
 # PESTAÑA 2: VENTAS DEL DÍA
@@ -277,7 +304,7 @@ with tab3:
             st.metric("💵 Total Efectivo en Caja Esperado", f"S/ {(caja_activa[1] + tot_efectivo):.2f}")
             
             st.markdown("---")
-            if st.button("🔒 CERRAR CAJA Y FINALIZAR TURNO"):
+            if st.button("🔒 CERRAR CAJA Y FINALIZAR TURNO", use_container_width=True):
                 conn = sqlite3.connect(DB_NAME)
                 c = conn.cursor()
                 c.execute("UPDATE caja SET monto_final = ?, fecha_cierre = ?, estado = 'CERRADA' WHERE id = ?",
