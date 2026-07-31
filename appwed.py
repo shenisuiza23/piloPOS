@@ -9,15 +9,14 @@ st.set_page_config(page_title="Pilo POS Tablet", page_icon="🍗", layout="wide"
 PIN_ADMIN = "200423"
 DB_NAME = "pos_v6.db"
 
-# CSS Inyectado forzado
+# CSS Inyectado para asegurar que TODOS los productos de la categoría activa tengan el mismo color
 st.markdown("""
     <style>
-    /* Aumentar tamaño base */
     html, body, [class*="css"] {
         font-size: 17px !important;
     }
 
-    /* Estilos base para todos los botones */
+    /* Estilos base generales para botones */
     div.stButton > button {
         color: white !important;
         font-weight: bold !important;
@@ -28,41 +27,51 @@ st.markdown("""
         box-shadow: 0px 3px 6px rgba(0,0,0,0.3) !important;
     }
 
-    /* COLOR 1: Pizzas (Azul) */
-    div[data-testid="stHorizontalBlock"] > div:nth-child(1) div.stButton > button {
+    /* --- COLORES DE BOTONES DE ENCABEZADO Y PRODUCTOS --- */
+    
+    /* 🍕 PIZZAS (Azul) */
+    .cat-pizzas div.stButton > button,
+    .prod-pizzas div.stButton > button {
         background-color: #2b5c8f !important;
     }
 
-    /* COLOR 2: Alitas (Amarillo) */
-    div[data-testid="stHorizontalBlock"] > div:nth-child(2) div.stButton > button {
+    /* 🍗 ALITAS (Amarillo) */
+    .cat-alitas div.stButton > button,
+    .prod-alitas div.stButton > button {
         background-color: #c69214 !important;
     }
 
-    /* COLOR 3: Hamburguesas (Naranja) */
-    div[data-testid="stHorizontalBlock"] > div:nth-child(3) div.stButton > button {
+    /* 🍔 HAMBURGUESAS (Naranja) */
+    .cat-hamburguesas div.stButton > button,
+    .prod-hamburguesas div.stButton > button {
         background-color: #d97724 !important;
     }
 
-    /* COLOR 4: Entradas (Verde) */
-    div[data-testid="stHorizontalBlock"] > div:nth-child(4) div.stButton > button {
+    /* 🍟 ENTRADAS (Verde) */
+    .cat-entradas div.stButton > button,
+    .prod-entradas div.stButton > button {
         background-color: #2e7d32 !important;
     }
 
-    /* COLOR 5: Otros (Celeste) */
-    div[data-testid="stHorizontalBlock"] > div:nth-child(5) div.stButton > button {
-        background-color: #0288d1 !important;
+    /* 🥤 OTROS (Celeste más clarito) */
+    .cat-otros div.stButton > button,
+    .prod-otros div.stButton > button {
+        background-color: #38bdf8 !important;
+        color: #0f172a !important; /* Texto oscuro para mejor contraste en celeste claro */
     }
 
-    /* Botón Cobrar (Verde destacado) */
+    /* Botón COBRAR (Verde destacado) */
     .btn-cobrar div.stButton > button {
         background-color: #2e7d32 !important;
+        color: white !important;
         font-size: 20px !important;
         height: 3.2em !important;
     }
 
-    /* Botón Vaciar (Azul) */
+    /* Botón VACIAR (Azul) */
     .btn-vaciar div.stButton > button {
         background-color: #1e3a8a !important;
+        color: white !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -192,17 +201,26 @@ with tab1:
     else:
         st.success(f"🟢 Caja Abierta con S/ {caja_activa[1]:.2f}")
         
-        categorias = ["Pizzas", "Alitas", "Hamburguesas", "Entradas", "Otros"]
+        # Mapeo de categorías y clases CSS
+        cats_dict = {
+            "Pizzas": "cat-pizzas",
+            "Alitas": "cat-alitas",
+            "Hamburguesas": "cat-hamburguesas",
+            "Entradas": "cat-entradas",
+            "Otros": "cat-otros"
+        }
 
         st.write("### Categorías:")
         if "cat_seleccionada" not in st.session_state:
             st.session_state.cat_seleccionada = "Pizzas"
             
-        cols_cat = st.columns(5)
-        for idx, cat in enumerate(categorias):
+        cols_cat = st.columns(len(cats_dict))
+        for idx, (cat, css_class) in enumerate(cats_dict.items()):
             with cols_cat[idx]:
+                st.markdown(f'<div class="{css_class}">', unsafe_allow_html=True)
                 if st.button(cat, key=f"cat_btn_{cat}", use_container_width=True):
                     st.session_state.cat_seleccionada = cat
+                st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown("---")
         
@@ -216,16 +234,23 @@ with tab1:
             conn.close()
             
             st.subheader(f"Menú: {st.session_state.cat_seleccionada}")
+            
+            # Identificar la clase de color para TODOS los productos actuales
+            prod_css_class = f"prod-{st.session_state.cat_seleccionada.lower()}"
+            
             m_col1, m_col2 = st.columns(2)
             
             for i, (p_id, p_nom, p_precio) in enumerate(prods):
                 col = m_col1 if i % 2 == 0 else m_col2
                 with col:
+                    # Envolver cada botón de producto con la clase de color de su categoría
+                    st.markdown(f'<div class="{prod_css_class}">', unsafe_allow_html=True)
                     if st.button(f"{p_nom}\nS/ {p_precio:.2f}", key=f"p_{p_id}", use_container_width=True):
                         if "carrito" not in st.session_state:
                             st.session_state.carrito = []
                         st.session_state.carrito.append({"id": p_id, "nombre": p_nom, "precio": p_precio})
                         st.toast(f"＋ {p_nom}")
+                    st.markdown('</div>', unsafe_allow_html=True)
 
         with col_carrito:
             st.subheader("🛒 Pedido Actual")
