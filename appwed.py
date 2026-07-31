@@ -8,7 +8,7 @@ st.set_page_config(page_title="Pilo POS Mobile", page_icon="🍗", layout="wide"
 
 PIN_ADMIN = "200423"
 
-# --- BASE DE DATOS E INICIALIZACIÓN ---
+# --- BASE DE DATOS E INICIALIZACIÓN SEGURO ---
 def inicializar_bd():
     conexion = sqlite3.connect("base_datos.db")
     cursor = conexion.cursor()
@@ -30,10 +30,16 @@ def inicializar_bd():
             cliente TEXT,
             tipo TEXT,
             total REAL,
-            metodo TEXT,
+            metodo TEXT DEFAULT 'Efectivo',
             fecha TEXT
         )
     """)
+    
+    # Asegurar que la columna 'metodo' exista en bases de datos viejas
+    try:
+        cursor.execute("ALTER TABLE ventas ADD COLUMN metodo TEXT DEFAULT 'Efectivo'")
+    except sqlite3.OperationalError:
+        pass  # La columna ya existe
     
     # Cargar productos base si está vacía
     cursor.execute("SELECT COUNT(*) FROM productos")
@@ -130,16 +136,19 @@ with tab1:
 # ---------------------------------------------------------
 with tab2:
     st.subheader("📋 Ventas Realizadas Hoy")
-    conn = sqlite3.connect("base_datos.db")
-    df_ventas = pd.read_sql_query("SELECT id AS ID, cliente AS Cliente, tipo AS Tipo, total AS 'Total S/', metodo AS Método, fecha AS Fecha FROM ventas ORDER BY id DESC", conn)
-    conn.close()
-    
-    if not df_ventas.empty:
-        st.dataframe(df_ventas, use_container_width=True)
-        total_hoy = df_ventas["Total S/"].sum()
-        st.metric("Total Recaudado Hoy", f"S/ {total_hoy:.2f}")
-    else:
-        st.write("Aún no hay ventas registradas el día de hoy.")
+    try:
+        conn = sqlite3.connect("base_datos.db")
+        df_ventas = pd.read_sql_query("SELECT id AS ID, cliente AS Cliente, tipo AS Tipo, total AS 'Total S/', metodo AS Método, fecha AS Fecha FROM ventas ORDER BY id DESC", conn)
+        conn.close()
+        
+        if not df_ventas.empty:
+            st.dataframe(df_ventas, use_container_width=True)
+            total_hoy = df_ventas["Total S/"].sum()
+            st.metric("Total Recaudado Hoy", f"S/ {total_hoy:.2f}")
+        else:
+            st.write("Aún no hay ventas registradas.")
+    except Exception as e:
+        st.info("Aún no hay registros de ventas.")
 
 # ---------------------------------------------------------
 # PESTAÑA 3: CIERRE DE TURNO
@@ -149,22 +158,27 @@ with tab3:
     clave = st.text_input("Contraseña de Administrador", type="password", key="pass_cierre")
     if clave == PIN_ADMIN:
         st.success("Acceso concedido")
-        conn = sqlite3.connect("base_datos.db")
-        df_ventas = pd.read_sql_query("SELECT * FROM ventas", conn)
-        conn.close()
-        
-        if not df_ventas.empty:
-            st.write("### Resumen del Turno:")
-            tot_efectivo = df_ventas[df_ventas['metodo'] == 'Efectivo']['total'].sum()
-            tot_yape = df_ventas[df_ventas['metodo'] == 'Yape']['total'].sum()
-            tot_plin = df_ventas[df_ventas['metodo'] == 'Plin']['total'].sum()
-            tot_general = df_ventas['total'].sum()
+        try:
+            conn = sqlite3.connect("base_datos.db")
+            df_ventas = pd.read_sql_query("SELECT * FROM ventas", conn)
+            conn.close()
             
-            c1, c2, c3 = st.columns(3)
-            c1.metric("💵 Efectivo", f"S/ {tot_efectivo:.2f}")
-            c2.metric("📲 Yape", f"S/ {tot_yape:.2f}")
-            c3.metric("📲 Plin", f"S/ {tot_plin:.2f}")
-            st.metric("💰 Total General", f"S/ {tot_general:.2f}")
+            if not df_ventas.empty:
+                st.write("### Resumen del Turno:")
+                tot_efectivo = df_ventas[df_ventas['metodo'] == 'Efectivo']['total'].sum() if 'metodo' in df_ventas.columns else 0
+                tot_yape = df_ventas[df_ventas['metodo'] == 'Yape']['total'].sum() if 'metodo' in df_ventas.columns else 0
+                tot_plin = df_ventas[df_ventas['metodo'] == 'Plin']['total'].sum() if 'metodo' in df_ventas.columns else 0
+                tot_general = df_ventas['total'].sum()
+                
+                c1, c2, c3 = st.columns(3)
+                c1.metric("💵 Efectivo", f"S/ {tot_efectivo:.2f}")
+                c2.metric("📲 Yape", f"S/ {tot_yape:.2f}")
+                c3.metric("📲 Plin", f"S/ {tot_plin:.2f}")
+                st.metric("💰 Total General", f"S/ {tot_general:.2f}")
+            else:
+                st.write("No hay ventas registradas en este turno.")
+        except Exception:
+            st.write("Sin datos para mostrar.")
     elif clave:
         st.error("Contraseña incorrecta")
 
@@ -176,13 +190,16 @@ with tab4:
     clave_rep = st.text_input("Contraseña de Administrador", type="password", key="pass_rep")
     if clave_rep == PIN_ADMIN:
         st.success("Acceso concedido")
-        conn = sqlite3.connect("base_datos.db")
-        df_ventas = pd.read_sql_query("SELECT * FROM ventas", conn)
-        conn.close()
-        
-        if not df_ventas.empty:
-            st.dataframe(df_ventas)
-        else:
-            st.write("No hay datos registrados aún.")
+        try:
+            conn = sqlite3.connect("base_datos.db")
+            df_ventas = pd.read_sql_query("SELECT * FROM ventas", conn)
+            conn.close()
+            
+            if not df_ventas.empty:
+                st.dataframe(df_ventas, use_container_width=True)
+            else:
+                st.write("No hay datos registrados aún.")
+        except Exception:
+            st.write("Sin registros previos.")
     elif clave_rep:
         st.error("Contraseña incorrecta")
