@@ -1,16 +1,7 @@
 import sqlite3
 from datetime import datetime
 import pandas as pd
-import pytz
 import streamlit as st
-
-# --- ZONA HORARIA DE PERÚ ---
-LIMA_TZ = pytz.timezone("America/Lima")
-
-
-def obtener_hora_peru():
-  return datetime.now(LIMA_TZ).strftime("%Y-%m-%d %H:%M:%S")
-
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
@@ -27,7 +18,7 @@ DB_NAME = "pilo_pos.db"
 if "carrito" not in st.session_state:
   st.session_state.carrito = {}
 
-# --- ESTILOS CSS ADAPTADOS Y PARA IMPRESIÓN DE TICKET ---
+# --- ESTILOS CSS ADAPTADOS PARA PANTALLA TÁCTIL ---
 st.markdown(
     """
     <style>
@@ -37,7 +28,7 @@ st.markdown(
         color: #ffffff;
     }
     
-    /* Header Principal Naranja */
+    /* Barra Superior PILO POS Naranja */
     .pilo-header {
         background: linear-gradient(90deg, #d97724 0%, #ea580c 100%);
         padding: 15px 25px;
@@ -56,7 +47,7 @@ st.markdown(
         margin: 0;
     }
     
-    /* Banners */
+    /* Display del Total turquesa */
     .total-banner {
         background-color: #00f5d4;
         color: #000000;
@@ -70,6 +61,7 @@ st.markdown(
         box-shadow: 0px 4px 10px rgba(0, 245, 212, 0.4);
     }
     
+    /* Banner informativo de Vuelto */
     .vuelto-banner {
         background-color: #00b4d8;
         color: #ffffff;
@@ -81,7 +73,7 @@ st.markdown(
         margin-top: 10px;
     }
 
-    /* Botones Gigantes */
+    /* Botón COBRAR gigante superior */
     div[data-testid="stKey-btn_cobrar_top"] > button {
         background-color: #16a34a !important;
         color: white !important;
@@ -92,6 +84,7 @@ st.markdown(
         box-shadow: 0px 4px 10px rgba(22, 163, 74, 0.4) !important;
     }
 
+    /* Botón VACIAR grande superior */
     div[data-testid="stKey-btn_vaciar_top"] > button {
         background-color: #dc2626 !important;
         color: white !important;
@@ -99,35 +92,6 @@ st.markdown(
         font-weight: bold !important;
         height: 75px !important;
         border-radius: 12px !important;
-    }
-
-    /* ESTILO PARA TICKET TERMICO DE IMPRESIÓN */
-    .ticket-box {
-        background-color: #ffffff;
-        color: #000000;
-        font-family: 'Courier New', Courier, monospace;
-        padding: 15px;
-        width: 280px;
-        margin: 0 auto;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        font-size: 12px;
-    }
-
-    /* Regla para ocultar todo al imprimir excepto el ticket */
-    @media print {
-        body * {
-            visibility: hidden;
-        }
-        .ticket-box, .ticket-box * {
-            visibility: visible;
-        }
-        .ticket-box {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-        }
     }
     </style>
 """,
@@ -178,6 +142,7 @@ def inicializar_bd():
   cursor.execute("SELECT COUNT(*) FROM productos")
   if cursor.fetchone()[0] == 0:
     productos_defecto = [
+        # 🍕 PIZZAS
         ("Pizza Americana Personal", "Pizzas", 25.00, 50),
         ("Pizza Hawaiana Personal", "Pizzas", 25.00, 50),
         ("Pizza Pepperoni Personal", "Pizzas", 25.00, 50),
@@ -186,20 +151,24 @@ def inicializar_bd():
         ("Pizza Hawaiana Familiar", "Pizzas", 45.00, 50),
         ("Pizza Pepperoni Familiar", "Pizzas", 45.00, 50),
         ("Pizza Pilo Familiar", "Pizzas", 50.00, 50),
+        # 🍗 ALITAS
         ("Alitas Rebozadas", "Alitas", 20.00, 50),
         ("Alitas BBQ", "Alitas", 22.00, 50),
         ("Alitas Acevichadas", "Alitas", 22.00, 50),
         ("Alitas Búfalo", "Alitas", 22.00, 50),
         ("Alitas Pilo", "Alitas", 24.00, 50),
+        # 🍔 HAMBURGUESAS
         ("Hamburguesa Clásica", "Hamburguesas", 6.00, 50),
         ("Hamburguesa Hawaiana", "Hamburguesas", 8.00, 50),
         ("Hamburguesa A lo Pilo", "Hamburguesas", 9.00, 50),
         ("Hamburguesa A lo Pobre", "Hamburguesas", 10.00, 50),
         ("Hamburguesa Royal", "Hamburguesas", 14.00, 50),
         ("Hamburguesa Mega Pilo", "Hamburguesas", 16.00, 50),
+        # 🍟 ENTRADAS
         ("Choripán", "Entradas", 6.00, 50),
         ("Salchipapa Clásica", "Entradas", 8.00, 50),
         ("Salchalita", "Entradas", 16.00, 50),
+        # ➕ EXTRAS
         ("Porción de Papa", "Extras", 5.00, 50),
         ("Porción de Maduro", "Extras", 5.00, 50),
         ("Porción de Alita", "Extras", 4.00, 50),
@@ -208,6 +177,7 @@ def inicializar_bd():
         ("Porción de Tocino", "Extras", 1.00, 50),
         ("Porción de Jamón", "Extras", 1.00, 50),
         ("Porción de Queso", "Extras", 1.00, 50),
+        # 🥤 BEBIDAS
         ("Inca Kola", "Bebidas", 5.00, 50),
         ("Coca Cola", "Bebidas", 5.00, 50),
         ("Chicha Morada", "Bebidas", 3.00, 50),
@@ -233,6 +203,7 @@ def obtener_siguiente_correlativo():
   return f"B001-{num_ventas:06d}"
 
 
+# --- RENDERIZADO DE BOTONES TÁCTILES POR CATEGORÍA ---
 def renderizar_grid_productos(categoria, color_hex, num_cols=2):
   conn = sqlite3.connect(DB_NAME)
   c = conn.cursor()
@@ -252,6 +223,7 @@ def renderizar_grid_productos(categoria, color_hex, num_cols=2):
     cols = st.columns(num_cols)
     for col, (p_id, p_nom, p_precio, p_stock) in zip(cols, grupo):
       with col:
+        # Estilo para convertir todo el botón del producto en una tarjeta táctil gigante del color seleccionado
         st.markdown(
             f"""
                     <style>
@@ -271,6 +243,7 @@ def renderizar_grid_productos(categoria, color_hex, num_cols=2):
             unsafe_allow_html=True,
         )
 
+        # Al pulsar en CUALQUIER PARTE de la tarjeta se agrega directamente
         if st.button(
             f"{p_nom}\n\nS/ {p_precio:.2f}  |  Stock: {p_stock}",
             key=f"prod_{p_id}",
@@ -287,15 +260,15 @@ def renderizar_grid_productos(categoria, color_hex, num_cols=2):
           st.rerun()
 
 
-# Inicialización BD
+# Inicialización
 inicializar_bd()
 
-# --- HEADER SUPERIOR ---
+# --- HEADER SUPERIOR (COLOR NARANJA PILO) ---
 st.markdown(
-    f"""
+    """
     <div class="pilo-header">
         <div class="pilo-title">🍔 Pilo POS</div>
-        <div style="font-size: 15px; font-weight: bold;">Hora Perú: {obtener_hora_peru()}</div>
+        <div style="font-size: 15px; font-weight: bold;">Sistema Touch de Venta</div>
     </div>
 """,
     unsafe_allow_html=True,
@@ -337,7 +310,7 @@ with tab1:
         c.execute(
             "INSERT INTO caja (monto_inicial, fecha_apertura, estado) VALUES"
             " (?, ?, 'ABIERTA')",
-            (monto_ini, obtener_hora_peru()),
+            (monto_ini, datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
         )
         conn.commit()
         conn.close()
@@ -348,6 +321,7 @@ with tab1:
   else:
     col_menu, col_carrito = st.columns([1.6, 1])
 
+    # --- MENÚ DE PRODUCTOS ---
     with col_menu:
       subtabs = st.tabs([
           "🍕 Pizzas",
@@ -370,7 +344,9 @@ with tab1:
         with subtab:
           renderizar_grid_productos(cat, color_hex, num_cols=2)
 
+    # --- PANEL DE CARRITO ---
     with col_carrito:
+      # --- BOTONES PRINCIPALES COBRAR Y VACIAR (EN LA PARTE SUPERIOR) ---
       col_b1, col_b2 = st.columns([1.8, 1])
       with col_b1:
         btn_cobrar = st.button(
@@ -427,6 +403,7 @@ with tab1:
         monto_digital = total
         monto_efectivo = 0.0
 
+      # ACCIONES DE NAVEGACIÓN AL PRESIONAR BOTONES SUPERIORES
       if btn_vaciar:
         st.session_state.carrito = {}
         st.rerun()
@@ -436,7 +413,7 @@ with tab1:
           st.warning("⚠️ El carrito está vacío.")
         else:
           correlativo = obtener_siguiente_correlativo()
-          fecha_actual = obtener_hora_peru()
+          fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
           detalle_str = ", ".join([
               f"{item['cant']}x {item['nombre']}"
               for item in st.session_state.carrito.values()
@@ -464,10 +441,18 @@ with tab1:
           conn.commit()
           conn.close()
 
+          st.session_state.ultima_venta = {
+              "correlativo": correlativo,
+              "total": total,
+              "metodo": metodo_pago,
+              "fecha": fecha_actual,
+              "detalle": st.session_state.carrito.copy(),
+          }
           st.session_state.carrito = {}
           st.success(f"¡Venta {correlativo} registrada correctamente!")
           st.rerun()
 
+      # DETALLE DE PRODUCTOS SELECCIONADOS EN CARRITO
       st.markdown("---")
       if st.session_state.carrito:
         st.write("**Productos en Carrito:**")
@@ -498,69 +483,25 @@ with tab1:
             st.rerun()
 
 # ---------------------------------------------------------
-# PESTAÑA 2: VENTAS DEL DÍA CON REIMPRESIÓN DE TICKET
+# PESTAÑA 2: VENTAS DEL DÍA
 # ---------------------------------------------------------
 with tab2:
-  st.subheader("📋 Registro e Impresión de Venta")
+  st.subheader("📋 Registro de Ventas")
   conn = sqlite3.connect(DB_NAME)
   try:
     df_ventas = pd.read_sql_query(
-        "SELECT id, correlativo AS Boleta, fecha AS Fecha, total AS 'Total S/',"
-        " metodo AS Método, detalle AS Detalle FROM ventas ORDER BY id DESC",
+        "SELECT correlativo AS Boleta, detalle AS Detalle, total AS 'Total S/',"
+        " metodo AS Método, fecha AS Fecha FROM ventas ORDER BY id DESC",
         conn,
     )
-
     if not df_ventas.empty:
-      st.dataframe(
-          df_ventas.drop(columns=["id"]),
-          use_container_width=True,
-          hide_index=True,
-      )
-
-      st.markdown("---")
-      st.markdown("### 🖨️ Reimprimir Ticket de Venta")
-
-      # Selector de boleta para imprimir
-      boleta_seleccionada = st.selectbox(
-          "Selecciona el número de boleta a imprimir:", df_ventas["Boleta"]
-      )
-
-      v_sel = df_ventas[df_ventas["Boleta"] == boleta_seleccionada].iloc[0]
-
-      # Visualizador de ticket térmico estilo comprobante
-      ticket_html = f"""
-            <div class="ticket-box">
-                <div style="text-align: center; font-weight: bold; font-size: 16px;">PILO POS</div>
-                <div style="text-align: center; font-size: 10px;">RUC: 10702030401</div>
-                <div style="text-align: center; font-size: 10px;">Pucallpa, Perú</div>
-                <hr style="border-top: 1px dashed #000; margin: 8px 0;">
-                <div><b>BOLETA:</b> {v_sel['Boleta']}</div>
-                <div><b>FECHA:</b> {v_sel['Fecha']}</div>
-                <div><b>MÉTODO:</b> {v_sel['Método']}</div>
-                <hr style="border-top: 1px dashed #000; margin: 8px 0;">
-                <div><b>DETALLE:</b></div>
-                <div style="font-size: 11px; margin-top: 4px;">{v_sel['Detalle']}</div>
-                <hr style="border-top: 1px dashed #000; margin: 8px 0;">
-                <div style="font-size: 14px; font-weight: bold; text-align: right;">TOTAL: S/ {v_sel['Total S/']:.2f}</div>
-                <hr style="border-top: 1px dashed #000; margin: 8px 0;">
-                <div style="text-align: center; font-size: 10px;">¡Gracias por su compra!</div>
-            </div>
-            """
-
-      col_t1, col_t2 = st.columns([1, 1])
-      with col_t1:
-        st.markdown(ticket_html, unsafe_allow_html=True)
-      with col_t2:
-        st.info(
-            "Presiona la combinación **Ctrl + P** (o **Cmd + P** en Mac) o el"
-            " botón de tu navegador para imprimir este ticket en la impresora"
-            " térmica."
-        )
-
+      st.dataframe(df_ventas, use_container_width=True)
+      total_hoy = df_ventas["Total S/"].sum()
+      st.metric("Total Recaudado", f"S/ {total_hoy:.2f}")
     else:
       st.write("No hay ventas registradas aún.")
-  except Exception as e:
-    st.error(f"Error cargando ventas: {e}")
+  except Exception:
+    st.write("Sin registros de ventas.")
   conn.close()
 
 # ---------------------------------------------------------
@@ -609,7 +550,11 @@ with tab3:
         c.execute(
             "UPDATE caja SET monto_final = ?, fecha_cierre = ?, estado ="
             " 'CERRADA' WHERE id = ?",
-            (caja_activa[1] + tot_ventas, obtener_hora_peru(), caja_activa[0]),
+            (
+                caja_activa[1] + tot_ventas,
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                caja_activa[0],
+            ),
         )
         conn.commit()
         conn.close()
@@ -619,13 +564,27 @@ with tab3:
       st.info("La caja está CERRADA.")
 
 # ---------------------------------------------------------
-# PESTAÑA 4: REPORTES EXCLUSIVAMENTE NUMÉRICOS
+# PESTAÑA 4: REPORTES
 # ---------------------------------------------------------
 with tab4:
-  st.subheader("📊 Reportes Financieros (Métricas en Números)")
+  st.subheader("📊 Reporte Visual de Ventas")
   clave_rep = st.text_input(
       "Contraseña Administrador", type="password", key="pass_rep"
   )
-
   if clave_rep == PIN_ADMIN:
-    conn = sqlite3.conn
+    conn = sqlite3.connect(DB_NAME)
+    try:
+      df_ventas = pd.read_sql_query("SELECT * FROM ventas", conn)
+      if not df_ventas.empty:
+        col_r1, col_r2 = st.columns(2)
+        with col_r1:
+          st.markdown("### Métodos de Pago")
+          st.bar_chart(df_ventas["metodo"].value_counts())
+        with col_r2:
+          st.markdown("### Histórico de Ingresos")
+          st.line_chart(df_ventas["total"])
+      else:
+        st.write("Sin datos para graficar.")
+    except Exception:
+      st.write("Sin datos disponibles.")
+    conn.close()
