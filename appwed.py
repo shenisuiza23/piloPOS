@@ -5,10 +5,10 @@ import streamlit as st
 # --- IMPORTACIONES DEL PROYECTO ---
 from config import DB_NAME, PIN_ADMIN
 from database import (
+    generar_correlativo_boleta,
     get_connection,
     inicializar_bd,
     registrar_venta_completa,
-    generar_correlativo_boleta,
 )
 from estilos import COLORES_CATEGORIAS, aplicar_estilos_css
 from inventario import render_inventario
@@ -245,19 +245,23 @@ with tab1:
                         unsafe_allow_html=True,
                     )
 
-                    if c_m.button("−", key=f"m_{p_id}"):
+                    # Botón Menos (-)
+                    if c_m.button("−", key=f"minus_{p_id}"):
                         st.session_state.carrito[p_id]["cant"] -= 1
                         if st.session_state.carrito[p_id]["cant"] <= 0:
                             del st.session_state.carrito[p_id]
                         st.rerun()
 
+                    # Cantidad actual
                     c_cant.markdown(f"**{item['cant']}**")
 
-                    if c_p.button("+", key=f"p_{p_id}"):
+                    # Botón Más (+)
+                    if c_p.button("+", key=f"plus_{p_id}"):
                         st.session_state.carrito[p_id]["cant"] += 1
                         st.rerun()
 
-                    if c_del.button("🗑", key=f"d_{p_id}"):
+                    # Botón Borrar (Basura)
+                    if c_del.button("🗑", key=f"del_{p_id}"):
                         del st.session_state.carrito[p_id]
                         st.rerun()
             else:
