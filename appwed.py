@@ -3,60 +3,59 @@ import sqlite3
 import pandas as pd
 from datetime import datetime
 
-# Configuración de la página optimizada para pantallas táctiles/tablets
+# Configuración de la página
 st.set_page_config(page_title="Pilo POS Tablet", page_icon="🍗", layout="wide", initial_sidebar_state="collapsed")
 
 PIN_ADMIN = "200423"
-DB_NAME = "pos_v5.db"
+DB_NAME = "pos_v6.db"
 
-# Estilos CSS diseñados para pantallas táctiles (tablets y celulares)
+# Estilos CSS personalizados con colores suaves y definidos por categoría
 st.markdown("""
     <style>
-    /* Aumentar tamaño general de texto e inputs para pantallas táctiles */
     html, body, [class*="css"] {
-        font-size: 18px !important;
+        font-size: 17px !important;
     }
     
-    /* Botones de menú táctiles grandes */
+    /* Botones generales de productos */
     div.stButton > button {
-        background-color: #FF8C00 !important;
+        background-color: #374151 !important;
         color: white !important;
         font-weight: bold !important;
-        font-size: 18px !important;
-        border-radius: 12px !important;
-        padding: 12px 10px !important;
+        font-size: 17px !important;
+        border-radius: 10px !important;
+        padding: 10px !important;
         border: none !important;
-        margin-bottom: 8px !important;
-        box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.2) !important;
+        margin-bottom: 6px !important;
     }
     
-    /* Efecto al presionar botón */
-    div.stButton > button:active {
-        transform: scale(0.97) !important;
-    }
-    
-    /* Botón verde grande para Registrar Venta */
+    /* Botones Específicos por Categoría (Colores Suaves) */
+    .btn-pizza > div.stButton > button { background-color: #2b5c8f !important; }
+    .btn-alitas > div.stButton > button { background-color: #c69214 !important; }
+    .btn-hamburguesa > div.stButton > button { background-color: #d97724 !important; }
+    .btn-entradas > div.stButton > button { background-color: #2e7d32 !important; }
+    .btn-otros > div.stButton > button { background-color: #0288d1 !important; }
+
+    /* Botón Cobrar (Verde Grande) */
     .btn-cobrar > div.stButton > button {
-        background-color: #28a745 !important;
+        background-color: #2e7d32 !important;
         color: white !important;
-        font-size: 22px !important;
+        font-size: 20px !important;
         font-weight: bold !important;
-        height: 3.5em !important;
-        border-radius: 14px !important;
-        box-shadow: 0px 5px 10px rgba(40, 167, 69, 0.4) !important;
+        height: 3.2em !important;
+        border-radius: 12px !important;
     }
-    
-    /* Radio buttons para Método de Pago más amplios */
-    div[role="radiogroup"] > label {
-        padding: 8px 16px !important;
-        background-color: #1e2229 !important;
-        border-radius: 8px !important;
-        margin-right: 8px !important;
+
+    /* Botón Vaciar Carrito (Azul) */
+    .btn-vaciar > div.stButton > button {
+        background-color: #1e3a8a !important;
+        color: white !important;
+        font-size: 16px !important;
+        border-radius: 10px !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- BASE DE DATOS Y MENÚ COMPLETO ---
+# --- BASE DE DATOS Y MENÚ REAL ---
 def inicializar_bd():
     conexion = sqlite3.connect(DB_NAME)
     cursor = conexion.cursor()
@@ -142,7 +141,7 @@ def inicializar_bd():
 inicializar_bd()
 
 # --- NAVEGACIÓN ---
-st.title("🍗 piloPOS - Tablet POS")
+st.title("🍗 piloPOS - Punto de Venta")
 
 tab1, tab2, tab3, tab4 = st.tabs([
     "🛒 Punto de Venta", 
@@ -162,8 +161,8 @@ with tab1:
     conn.close()
 
     if not caja_activa:
-        st.warning("⚠️ La caja está CERRADA. Ingresa contraseña y monto inicial para empezar.")
-        clave_apertura = st.text_input("Contraseña de Apertura", type="password", key="pass_open")
+        st.warning("⚠️ La caja está CERRADA. Abre caja para empezar las ventas.")
+        clave_apertura = st.text_input("Contraseña para Abrir Caja", type="password", key="pass_open")
         monto_ini = st.number_input("Monto Inicial en Caja (S/):", min_value=0.0, value=0.0, step=5.0)
         
         if st.button("🔓 ABRIR CAJA E INICIAR VENTAS", use_container_width=True):
@@ -177,30 +176,35 @@ with tab1:
                 st.success("¡Caja abierta exitosamente!")
                 st.rerun()
             else:
-                st.error("Contraseña incorrecta para abrir caja.")
+                st.error("Contraseña incorrecta")
     else:
         st.success(f"🟢 Caja Abierta con S/ {caja_activa[1]:.2f}")
         
-        # Obtener categorías
-        conn = sqlite3.connect(DB_NAME)
-        c = conn.cursor()
-        c.execute("SELECT DISTINCT categoria FROM productos")
-        cats = [row[0] for row in c.fetchall()]
-        conn.close()
+        # Mapeo de categorías con colores
+        cats_color = {
+            "Pizzas": "btn-pizza",
+            "Alitas": "btn-alitas",
+            "Hamburguesas": "btn-hamburguesa",
+            "Entradas": "btn-entradas",
+            "Otros": "btn-otros"
+        }
 
-        st.write("### Selecciona Categoría:")
-        if "cat_seleccionada" not in st.session_state or st.session_state.cat_seleccionada not in cats:
-            st.session_state.cat_seleccionada = cats[0] if cats else "Alitas"
+        st.write("### Categorías:")
+        if "cat_seleccionada" not in st.session_state:
+            st.session_state.cat_seleccionada = "Pizzas"
             
-        cols_cat = st.columns(len(cats))
-        for idx, cat in enumerate(cats):
-            if cols_cat[idx].button(f"🟧 {cat}", key=f"cat_btn_{cat}", use_container_width=True):
-                st.session_state.cat_seleccionada = cat
+        cols_cat = st.columns(len(cats_color))
+        for idx, (cat, css_class) in enumerate(cats_color.items()):
+            with cols_cat[idx]:
+                st.markdown(f'<div class="{css_class}">', unsafe_allow_html=True)
+                if st.button(cat, key=f"cat_btn_{cat}", use_container_width=True):
+                    st.session_state.cat_seleccionada = cat
+                st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown("---")
         
-        # Layout dividido para Tablet: Menú a la izquierda (60%) y Carrito a la derecha (40%)
-        col_menu, col_carrito = st.columns([1.3, 1])
+        # Layout principal de Venta
+        col_menu, col_carrito = st.columns([1.2, 1])
         
         with col_menu:
             conn = sqlite3.connect(DB_NAME)
@@ -211,18 +215,23 @@ with tab1:
             
             st.subheader(f"Menú: {st.session_state.cat_seleccionada}")
             m_col1, m_col2 = st.columns(2)
+            
+            css_actual = cats_color.get(st.session_state.cat_seleccionada, "")
+            
             for i, (p_id, p_nom, p_precio) in enumerate(prods):
                 col = m_col1 if i % 2 == 0 else m_col2
-                if col.button(f"{p_nom}\nS/ {p_precio:.2f}", key=f"p_{p_id}", use_container_width=True):
-                    if "carrito" not in st.session_state:
-                        st.session_state.carrito = []
-                    st.session_state.carrito.append({"id": p_id, "nombre": p_nom, "precio": p_precio})
-                    st.toast(f"＋ {p_nom}")
+                with col:
+                    st.markdown(f'<div class="{css_actual}">', unsafe_allow_html=True)
+                    if st.button(f"{p_nom}\nS/ {p_precio:.2f}", key=f"p_{p_id}", use_container_width=True):
+                        if "carrito" not in st.session_state:
+                            st.session_state.carrito = []
+                        st.session_state.carrito.append({"id": p_id, "nombre": p_nom, "precio": p_precio})
+                        st.toast(f"＋ {p_nom}")
+                    st.markdown('</div>', unsafe_allow_html=True)
 
         with col_carrito:
             st.subheader("🛒 Pedido Actual")
-            metodo_pago = st.radio("Método de Pago:", ["Efectivo", "Yape", "Plin"], horizontal=True)
-            st.markdown("---")
+            metodo_pago = st.radio("Método de Pago:", ["Efectivo", "Yape", "Plin", "Mixto"], horizontal=True)
             
             if "carrito" in st.session_state and st.session_state.carrito:
                 for item in st.session_state.carrito:
@@ -231,8 +240,18 @@ with tab1:
                 total = sum(item["precio"] for item in st.session_state.carrito)
                 st.markdown(f"### **Total: S/ {total:.2f}**")
                 
+                vuelto = 0.0
+                if metodo_pago == "Efectivo":
+                    monto_recibido = st.number_input("Monto Recibido (S/):", min_value=total, value=total, step=1.0)
+                    vuelto = monto_recibido - total
+                    st.info(f"💵 **Vuelto a entregar: S/ {vuelto:.2f}**")
+                elif metodo_pago == "Mixto":
+                    efectivo_part = st.number_input("Monto en Efectivo (S/):", min_value=0.0, max_value=total, value=total/2)
+                    digital_part = total - efectivo_part
+                    st.write(f"📲 Yape/Plin restante: **S/ {digital_part:.2f}**")
+                
                 st.markdown('<div class="btn-cobrar">', unsafe_allow_html=True)
-                if st.button("🚀 REGISTRAR VENTA", use_container_width=True):
+                if st.button("🚀 COBRAR (Registrar Venta)", use_container_width=True):
                     conn = sqlite3.connect(DB_NAME)
                     c = conn.cursor()
                     fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -245,11 +264,13 @@ with tab1:
                     st.rerun()
                 st.markdown('</div>', unsafe_allow_html=True)
                     
+                st.markdown('<div class="btn-vaciar">', unsafe_allow_html=True)
                 if st.button("🗑️ Vaciar Carrito", use_container_width=True):
                     st.session_state.carrito = []
                     st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
             else:
-                st.info("Toca un producto de la izquierda para agregarlo.")
+                st.info("El carrito está vacío.")
 
 # ---------------------------------------------------------
 # PESTAÑA 2: VENTAS DEL DÍA
@@ -293,15 +314,17 @@ with tab3:
             tot_efectivo = df_ventas[df_ventas['metodo'] == 'Efectivo']['total'].sum() if not df_ventas.empty else 0
             tot_yape = df_ventas[df_ventas['metodo'] == 'Yape']['total'].sum() if not df_ventas.empty else 0
             tot_plin = df_ventas[df_ventas['metodo'] == 'Plin']['total'].sum() if not df_ventas.empty else 0
+            tot_mixto = df_ventas[df_ventas['metodo'] == 'Mixto']['total'].sum() if not df_ventas.empty else 0
             tot_ventas = df_ventas['total'].sum() if not df_ventas.empty else 0
             
             st.markdown("---")
-            c1, c2, c3 = st.columns(3)
+            c1, c2, c3, c4 = st.columns(4)
             c1.metric("💵 Efectivo", f"S/ {tot_efectivo:.2f}")
             c2.metric("📲 Yape", f"S/ {tot_yape:.2f}")
             c3.metric("📲 Plin", f"S/ {tot_plin:.2f}")
+            c4.metric("🔀 Mixto", f"S/ {tot_mixto:.2f}")
             st.metric("💰 Total Ventas", f"S/ {tot_ventas:.2f}")
-            st.metric("💵 Total Efectivo en Caja Esperado", f"S/ {(caja_activa[1] + tot_efectivo):.2f}")
+            st.metric("💵 Total Efectivo Esperado", f"S/ {(caja_activa[1] + tot_efectivo):.2f}")
             
             st.markdown("---")
             if st.button("🔒 CERRAR CAJA Y FINALIZAR TURNO", use_container_width=True):
