@@ -3,54 +3,66 @@ import sqlite3
 import pandas as pd
 from datetime import datetime
 
-# Configuración de la página
+# Configuración de página
 st.set_page_config(page_title="Pilo POS Tablet", page_icon="🍗", layout="wide", initial_sidebar_state="collapsed")
 
 PIN_ADMIN = "200423"
 DB_NAME = "pos_v6.db"
 
-# Estilos CSS personalizados con colores suaves y definidos por categoría
+# CSS Inyectado forzado
 st.markdown("""
     <style>
+    /* Aumentar tamaño base */
     html, body, [class*="css"] {
         font-size: 17px !important;
     }
-    
-    /* Botones generales de productos */
+
+    /* Estilos base para todos los botones */
     div.stButton > button {
-        background-color: #374151 !important;
         color: white !important;
         font-weight: bold !important;
-        font-size: 17px !important;
-        border-radius: 10px !important;
-        padding: 10px !important;
-        border: none !important;
-        margin-bottom: 6px !important;
-    }
-    
-    /* Botones Específicos por Categoría (Colores Suaves) */
-    .btn-pizza > div.stButton > button { background-color: #2b5c8f !important; }
-    .btn-alitas > div.stButton > button { background-color: #c69214 !important; }
-    .btn-hamburguesa > div.stButton > button { background-color: #d97724 !important; }
-    .btn-entradas > div.stButton > button { background-color: #2e7d32 !important; }
-    .btn-otros > div.stButton > button { background-color: #0288d1 !important; }
-
-    /* Botón Cobrar (Verde Grande) */
-    .btn-cobrar > div.stButton > button {
-        background-color: #2e7d32 !important;
-        color: white !important;
-        font-size: 20px !important;
-        font-weight: bold !important;
-        height: 3.2em !important;
+        font-size: 18px !important;
         border-radius: 12px !important;
+        padding: 14px !important;
+        border: none !important;
+        box-shadow: 0px 3px 6px rgba(0,0,0,0.3) !important;
     }
 
-    /* Botón Vaciar Carrito (Azul) */
-    .btn-vaciar > div.stButton > button {
+    /* COLOR 1: Pizzas (Azul) */
+    div[data-testid="stHorizontalBlock"] > div:nth-child(1) div.stButton > button {
+        background-color: #2b5c8f !important;
+    }
+
+    /* COLOR 2: Alitas (Amarillo) */
+    div[data-testid="stHorizontalBlock"] > div:nth-child(2) div.stButton > button {
+        background-color: #c69214 !important;
+    }
+
+    /* COLOR 3: Hamburguesas (Naranja) */
+    div[data-testid="stHorizontalBlock"] > div:nth-child(3) div.stButton > button {
+        background-color: #d97724 !important;
+    }
+
+    /* COLOR 4: Entradas (Verde) */
+    div[data-testid="stHorizontalBlock"] > div:nth-child(4) div.stButton > button {
+        background-color: #2e7d32 !important;
+    }
+
+    /* COLOR 5: Otros (Celeste) */
+    div[data-testid="stHorizontalBlock"] > div:nth-child(5) div.stButton > button {
+        background-color: #0288d1 !important;
+    }
+
+    /* Botón Cobrar (Verde destacado) */
+    .btn-cobrar div.stButton > button {
+        background-color: #2e7d32 !important;
+        font-size: 20px !important;
+        height: 3.2em !important;
+    }
+
+    /* Botón Vaciar (Azul) */
+    .btn-vaciar div.stButton > button {
         background-color: #1e3a8a !important;
-        color: white !important;
-        font-size: 16px !important;
-        border-radius: 10px !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -180,30 +192,20 @@ with tab1:
     else:
         st.success(f"🟢 Caja Abierta con S/ {caja_activa[1]:.2f}")
         
-        # Mapeo de categorías con colores
-        cats_color = {
-            "Pizzas": "btn-pizza",
-            "Alitas": "btn-alitas",
-            "Hamburguesas": "btn-hamburguesa",
-            "Entradas": "btn-entradas",
-            "Otros": "btn-otros"
-        }
+        categorias = ["Pizzas", "Alitas", "Hamburguesas", "Entradas", "Otros"]
 
         st.write("### Categorías:")
         if "cat_seleccionada" not in st.session_state:
             st.session_state.cat_seleccionada = "Pizzas"
             
-        cols_cat = st.columns(len(cats_color))
-        for idx, (cat, css_class) in enumerate(cats_color.items()):
+        cols_cat = st.columns(5)
+        for idx, cat in enumerate(categorias):
             with cols_cat[idx]:
-                st.markdown(f'<div class="{css_class}">', unsafe_allow_html=True)
                 if st.button(cat, key=f"cat_btn_{cat}", use_container_width=True):
                     st.session_state.cat_seleccionada = cat
-                st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown("---")
         
-        # Layout principal de Venta
         col_menu, col_carrito = st.columns([1.2, 1])
         
         with col_menu:
@@ -216,18 +218,14 @@ with tab1:
             st.subheader(f"Menú: {st.session_state.cat_seleccionada}")
             m_col1, m_col2 = st.columns(2)
             
-            css_actual = cats_color.get(st.session_state.cat_seleccionada, "")
-            
             for i, (p_id, p_nom, p_precio) in enumerate(prods):
                 col = m_col1 if i % 2 == 0 else m_col2
                 with col:
-                    st.markdown(f'<div class="{css_actual}">', unsafe_allow_html=True)
                     if st.button(f"{p_nom}\nS/ {p_precio:.2f}", key=f"p_{p_id}", use_container_width=True):
                         if "carrito" not in st.session_state:
                             st.session_state.carrito = []
                         st.session_state.carrito.append({"id": p_id, "nombre": p_nom, "precio": p_precio})
                         st.toast(f"＋ {p_nom}")
-                    st.markdown('</div>', unsafe_allow_html=True)
 
         with col_carrito:
             st.subheader("🛒 Pedido Actual")
