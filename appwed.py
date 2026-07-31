@@ -4,16 +4,16 @@ import pandas as pd
 from datetime import datetime
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="Pilo POS", page_icon="🍔", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Pilo POS ", page_icon="🍔", layout="wide", initial_sidebar_state="collapsed")
 
 PIN_ADMIN = "200423"
-DB_NAME = "pilopos.db"
+DB_NAME = "pos_v7.db"
 
 # --- ESTADO DE SESIÓN ---
 if "carrito" not in st.session_state:
     st.session_state.carrito = {}
 
-# --- ESTILOS CSS PERSONALIZADOS ---
+# --- ESTILOS CSS PERSONALIZADOS (PALETA ACTUALIZADA) ---
 st.markdown("""
     <style>
     /* 1. Header Superior Naranja Pilo POS */
@@ -38,19 +38,20 @@ st.markdown("""
     /* Base para botones de la app */
     div.stButton > button {
         font-weight: bold !important;
-        font-size: 16px !important;
+        font-size: 15px !important;
         border-radius: 10px !important;
-        padding: 10px !important;
+        padding: 8px !important;
         border: none !important;
         box-shadow: 0px 2px 5px rgba(0,0,0,0.15) !important;
     }
 
-    /* Estilos temáticos por categoría de productos */
+    /* Colores por Categoría */
     .theme-pizzas div.stButton > button { background-color: #2b5c8f !important; color: white !important; height: 75px !important; }
     .theme-alitas div.stButton > button { background-color: #c69214 !important; color: white !important; height: 75px !important; }
     .theme-hamburguesas div.stButton > button { background-color: #d97724 !important; color: white !important; height: 75px !important; }
     .theme-entradas div.stButton > button { background-color: #2e7d32 !important; color: white !important; height: 75px !important; }
-    .theme-otros div.stButton > button { background-color: #0284c7 !important; color: white !important; height: 75px !important; }
+    .theme-extras div.stButton > button { background-color: #7e22ce !important; color: white !important; height: 75px !important; }
+    .theme-bebidas div.stButton > button { background-color: #0284c7 !important; color: white !important; height: 75px !important; }
 
     /* Botones Principales de Acción */
     div[data-testid="stKey-btn_cobrar"] button {
@@ -121,36 +122,57 @@ def inicializar_bd():
     cursor.execute("SELECT COUNT(*) FROM productos")
     if cursor.fetchone()[0] == 0:
         productos_defecto = [
-            ("Pizza Americana Personal", "Pizzas", 25.00, 50, "Personal"),
-            ("Pizza Hawaiana Personal", "Pizzas", 25.00, 50, "Personal"),
-            ("Pizza Peperoni Personal", "Pizzas", 25.00, 50, "Personal"),
-            ("Pizza Pilo Personal", "Pizzas", 28.00, 50, "Personal"),
-            ("Pizza Americana Familiar", "Pizzas", 45.00, 50, "Familiar"),
-            ("Pizza Hawaiana Familiar", "Pizzas", 45.00, 50, "Familiar"),
-            ("Pizza Peperoni Familiar", "Pizzas", 45.00, 50, "Familiar"),
-            ("Pizza Pilo Familiar", "Pizzas", 50.00, 50, "Familiar"),
-            ("Alitas Rebozadas", "Alitas", 20.00, 50, "Porción"),
-            ("Alitas BBQ", "Alitas", 22.00, 50, "Porción"),
-            ("Alitas Acevichadas", "Alitas", 22.00, 50, "Porción"),
-            ("Alitas Búfalo", "Alitas", 22.00, 50, "Porción"),
-            ("Alitas Pilo", "Alitas", 24.00, 50, "Porción"),
-            ("Hamburguesa Clásica", "Hamburguesas", 6.00, 50, "Clásica"),
-            ("Hamburguesa Hawaiana", "Hamburguesas", 8.00, 50, "Hawaiana"),
-            ("Hamburguesa Pilo", "Hamburguesas", 9.00, 50, "Pilo"),
-            ("Hamburguesa A lo pobre", "Hamburguesas", 10.00, 50, "A lo pobre"),
-            ("Hamburguesa Royal", "Hamburguesas", 14.00, 50, "Royal"),
-            ("Hamburguesa Mega Pilo", "Hamburguesas", 16.00, 50, "Mega Pilo"),
-            ("Choripan", "Entradas", 6.00, 50, "Tradicional"),
-            ("Salchipapa Clásica", "Entradas", 8.00, 50, "Clásica"),
-            ("Salchialita", "Entradas", 16.00, 50, "Especial"),
-            ("Porción de Papa", "Otros", 5.00, 100, "Extra"),
-            ("Porción de Maduro", "Otros", 5.00, 100, "Extra"),
-            ("Porción de Alitas (x ud)", "Otros", 4.00, 100, "Extra"),
-            ("Inca Kola 500ml", "Otros", 5.00, 100, "Bebida"),
-            ("Coca Cola 500ml", "Otros", 5.00, 100, "Bebida"),
-            ("Chicha Morada", "Otros", 3.00, 100, "Bebida")
+            # 🍕 PIZZAS
+            ("Pizza Americana Personal", "Pizzas", 25.00),
+            ("Pizza Hawaiana Personal", "Pizzas", 25.00),
+            ("Pizza Pepperoni Personal", "Pizzas", 25.00),
+            ("Pizza Pilo Personal", "Pizzas", 28.00),
+            ("Pizza Americana Familiar", "Pizzas", 45.00),
+            ("Pizza Hawaiana Familiar", "Pizzas", 45.00),
+            ("Pizza Pepperoni Familiar", "Pizzas", 45.00),
+            ("Pizza Pilo Familiar", "Pizzas", 50.00),
+
+            # 🍗 ALITAS
+            ("Alitas Rebozadas", "Alitas", 20.00),
+            ("Alitas BBQ", "Alitas", 22.00),
+            ("Alitas Acevichadas", "Alitas", 22.00),
+            ("Alitas Búfalo", "Alitas", 22.00),
+            ("Alitas Pilo", "Alitas", 24.00),
+
+            # 🍔 HAMBURGUESAS
+            ("Hamburguesa Clásica", "Hamburguesas", 6.00),
+            ("Hamburguesa Hawaiana", "Hamburguesas", 8.00),
+            ("Hamburguesa A lo Pilo", "Hamburguesas", 9.00),
+            ("Hamburguesa A lo Pobre", "Hamburguesas", 10.00),
+            ("Hamburguesa Royal", "Hamburguesas", 14.00),
+            ("Hamburguesa Mega Pilo", "Hamburguesas", 16.00),
+
+            # 🍟 ENTRADAS
+            ("Choripán", "Entradas", 6.00),
+            ("Salchipapa Clásica", "Entradas", 8.00),
+            ("Salchalita", "Entradas", 16.00),
+
+            # ➕ PORCIONES / EXTRAS
+            ("Porción de Papa", "Extras", 5.00),
+            ("Porción de Maduro", "Extras", 5.00),
+            ("Porción de Alita", "Extras", 4.00),
+            ("Porción de Carne de Hamburguesa", "Extras", 3.00),
+            ("Porción de Huevo", "Extras", 1.00),
+            ("Porción de Tocino", "Extras", 1.00),
+            ("Porción de Jamón", "Extras", 1.00),
+            ("Porción de Queso", "Extras", 1.00),
+            ("Porción de Papa para Hamburguesa", "Extras", 1.00),
+            ("Porción de Maduro para Hamburguesa", "Extras", 1.00),
+
+            # 🥤 BEBIDAS
+            ("Inca Kola", "Bebidas", 5.00),
+            ("Coca Cola", "Bebidas", 5.00),
+            ("Chicha Morada", "Bebidas", 3.00),
+            ("Cocona", "Bebidas", 3.00),
+            ("Agua Mineral", "Bebidas", 2.00)
         ]
-        cursor.executemany("INSERT INTO productos (nombre, categoria, precio, stock, tipo) VALUES (?, ?, ?, ?, ?)", productos_defecto)
+        # Inserción adaptada a la nueva estructura simplificada
+        cursor.executemany("INSERT INTO productos (nombre, categoria, precio) VALUES (?, ?, ?)", productos_defecto)
     
     conexion.commit()
     conexion.close()
@@ -186,7 +208,7 @@ def renderizar_grid_productos(categoria, css_theme_class, num_cols=3):
                     st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Inicializar Base de Datos al cargar
+# Inicializar Base de Datos
 inicializar_bd()
 
 # --- HEADER SUPERIOR COLOR NARANJA ---
@@ -238,10 +260,10 @@ with tab1:
     else:
         col_menu, col_carrito = st.columns([1.5, 1])
         
-        # --- CATÁLOGO ORGANIZADO EN PESTAÑAS Y CUADRÍCULAS ---
+        # --- CATÁLOGO ORGANIZADO EN 6 PESTAÑAS Y CUADRÍCULAS ---
         with col_menu:
-            subtab_pizzas, subtab_alitas, subtab_burgers, subtab_entradas, subtab_otros = st.tabs([
-                "🍕 Pizzas", "🍗 Alitas", "🍔 Hamburguesas", "🍟 Entradas", "🥤 Otros"
+            subtab_pizzas, subtab_alitas, subtab_burgers, subtab_entradas, subtab_extras, subtab_bebidas = st.tabs([
+                "🍕 Pizzas", "🍗 Alitas", "🍔 Hamburguesas", "🍟 Entradas", "➕ Extras", "🥤 Bebidas"
             ])
 
             with subtab_pizzas:
@@ -256,8 +278,11 @@ with tab1:
             with subtab_entradas:
                 renderizar_grid_productos("Entradas", "theme-entradas", num_cols=3)
 
-            with subtab_otros:
-                renderizar_grid_productos("Otros", "theme-otros", num_cols=3)
+            with subtab_extras:
+                renderizar_grid_productos("Extras", "theme-extras", num_cols=3)
+
+            with subtab_bebidas:
+                renderizar_grid_productos("Bebidas", "theme-bebidas", num_cols=3)
 
         # --- CARRITO DE COMPRAS Y TICKET ---
         with col_carrito:
