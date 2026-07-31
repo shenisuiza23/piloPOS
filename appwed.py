@@ -18,23 +18,24 @@ DB_NAME = "pilo_pos.db"
 if "carrito" not in st.session_state:
   st.session_state.carrito = {}
 
-# --- ESTILOS CSS ---
+# --- ESTILOS CSS ADAPTADOS PARA PANTALLA TÁCTIL ---
 st.markdown(
     """
     <style>
-    /* Fondo principal y cabecera */
+    /* Fondo principal */
     .stApp {
         background-color: #0b131f;
         color: #ffffff;
     }
     
+    /* Barra Superior PILO POS Naranja */
     .pilo-header {
-        background: linear-gradient(90deg, #00b4d8 0%, #0077b6 100%);
+        background: linear-gradient(90deg, #d97724 0%, #ea580c 100%);
         padding: 15px 25px;
         border-radius: 12px;
         color: white;
         margin-bottom: 20px;
-        box-shadow: 0px 4px 12px rgba(0, 180, 216, 0.3);
+        box-shadow: 0px 4px 12px rgba(234, 88, 12, 0.4);
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -55,11 +56,12 @@ st.markdown(
         text-align: center;
         font-size: 28px;
         font-weight: 900;
+        margin-top: 10px;
         margin-bottom: 15px;
         box-shadow: 0px 4px 10px rgba(0, 245, 212, 0.4);
     }
     
-    /* Botón informativo de Vuelto azul cyan */
+    /* Banner informativo de Vuelto */
     .vuelto-banner {
         background-color: #00b4d8;
         color: #ffffff;
@@ -71,10 +73,25 @@ st.markdown(
         margin-top: 10px;
     }
 
-    /* Estilo de los botones de productos */
-    div[data-testid="stButton"] > button {
-        border-radius: 10px !important;
+    /* Botón COBRAR gigante superior */
+    div[data-testid="stKey-btn_cobrar_top"] > button {
+        background-color: #16a34a !important;
+        color: white !important;
+        font-size: 22px !important;
+        font-weight: 900 !important;
+        height: 75px !important;
+        border-radius: 12px !important;
+        box-shadow: 0px 4px 10px rgba(22, 163, 74, 0.4) !important;
+    }
+
+    /* Botón VACIAR grande superior */
+    div[data-testid="stKey-btn_vaciar_top"] > button {
+        background-color: #dc2626 !important;
+        color: white !important;
+        font-size: 18px !important;
         font-weight: bold !important;
+        height: 75px !important;
+        border-radius: 12px !important;
     }
     </style>
 """,
@@ -186,7 +203,8 @@ def obtener_siguiente_correlativo():
   return f"B001-{num_ventas:06d}"
 
 
-def renderizar_grid_productos(categoria, num_cols=2):
+# --- RENDERIZADO DE BOTONES TÁCTILES POR CATEGORÍA ---
+def renderizar_grid_productos(categoria, color_hex, num_cols=2):
   conn = sqlite3.connect(DB_NAME)
   c = conn.cursor()
   c.execute(
@@ -205,24 +223,32 @@ def renderizar_grid_productos(categoria, num_cols=2):
     cols = st.columns(num_cols)
     for col, (p_id, p_nom, p_precio, p_stock) in zip(cols, grupo):
       with col:
+        # Estilo para convertir todo el botón del producto en una tarjeta táctil gigante del color seleccionado
         st.markdown(
             f"""
-                    <div style="
-                        background: linear-gradient(135deg, #00b4d8 0%, #0096c7 100%);
-                        padding: 18px 15px;
-                        border-radius: 10px;
-                        text-align: center;
-                        color: #ffffff;
-                        box-shadow: 0px 4px 8px rgba(0,0,0,0.3);
-                        margin-bottom: 6px;">
-                        <div style="font-size: 17px; font-weight: 800;">{p_nom}</div>
-                        <div style="font-size: 14px; font-weight: 600; opacity: 0.9; margin-top: 4px;">S/ {p_precio:.2f} | Stock: {p_stock}</div>
-                    </div>
+                    <style>
+                    div[data-testid="stKey-prod_{p_id}"] button {{
+                        background: {color_hex} !important;
+                        color: white !important;
+                        height: 95px !important;
+                        white-space: pre-wrap !important;
+                        font-size: 16px !important;
+                        font-weight: 800 !important;
+                        border: none !important;
+                        box-shadow: 0px 4px 8px rgba(0,0,0,0.3) !important;
+                        margin-bottom: 8px !important;
+                    }}
+                    </style>
                 """,
             unsafe_allow_html=True,
         )
 
-        if st.button("➕ AGREGAR", key=f"prod_{p_id}", use_container_width=True):
+        # Al pulsar en CUALQUIER PARTE de la tarjeta se agrega directamente
+        if st.button(
+            f"{p_nom}\n\nS/ {p_precio:.2f}  |  Stock: {p_stock}",
+            key=f"prod_{p_id}",
+            use_container_width=True,
+        ):
           if p_id in st.session_state.carrito:
             st.session_state.carrito[p_id]["cant"] += 1
           else:
@@ -237,12 +263,12 @@ def renderizar_grid_productos(categoria, num_cols=2):
 # Inicialización
 inicializar_bd()
 
-# --- HEADER SUPERIOR ---
+# --- HEADER SUPERIOR (COLOR NARANJA PILO) ---
 st.markdown(
     """
     <div class="pilo-header">
         <div class="pilo-title">🍔 Pilo POS</div>
-        <div style="font-size: 15px; font-weight: bold;">Sistema de Venta</div>
+        <div style="font-size: 15px; font-weight: bold;">Sistema Touch de Venta</div>
     </div>
 """,
     unsafe_allow_html=True,
@@ -306,20 +332,31 @@ with tab1:
           "🥤 Bebidas",
       ])
       cats = [
-          "Pizzas",
-          "Alitas",
-          "Hamburguesas",
-          "Entradas",
-          "Extras",
-          "Bebidas",
+          ("Pizzas", "linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)"),
+          ("Alitas", "linear-gradient(135deg, #b45309 0%, #f59e0b 100%)"),
+          ("Hamburguesas", "linear-gradient(135deg, #c2410c 0%, #ea580c 100%)"),
+          ("Entradas", "linear-gradient(135deg, #15803d 0%, #22c55e 100%)"),
+          ("Extras", "linear-gradient(135deg, #6b21a8 0%, #a855f7 100%)"),
+          ("Bebidas", "linear-gradient(135deg, #0369a1 0%, #0ea5e9 100%)"),
       ]
 
-      for subtab, cat in zip(subtabs, cats):
+      for subtab, (cat, color_hex) in zip(subtabs, cats):
         with subtab:
-          renderizar_grid_productos(cat, num_cols=2)
+          renderizar_grid_productos(cat, color_hex, num_cols=2)
 
     # --- PANEL DE CARRITO ---
     with col_carrito:
+      # --- BOTONES PRINCIPALES COBRAR Y VACIAR (EN LA PARTE SUPERIOR) ---
+      col_b1, col_b2 = st.columns([1.8, 1])
+      with col_b1:
+        btn_cobrar = st.button(
+            "🚀 COBRAR", key="btn_cobrar_top", use_container_width=True
+        )
+      with col_b2:
+        btn_vaciar = st.button(
+            "🗑️ VACIAR", key="btn_vaciar_top", use_container_width=True
+        )
+
       total = sum(
           item["precio"] * item["cant"]
           for item in st.session_state.carrito.values()
@@ -366,17 +403,7 @@ with tab1:
         monto_digital = total
         monto_efectivo = 0.0
 
-      st.write("")
-      col_b1, col_b2 = st.columns(2)
-      with col_b1:
-        btn_cobrar = st.button(
-            "🚀 COBRAR VENTA", key="btn_cobrar", use_container_width=True
-        )
-      with col_b2:
-        btn_vaciar = st.button(
-            "🗑️ VACIAR", key="btn_vaciar", use_container_width=True
-        )
-
+      # ACCIONES DE NAVEGACIÓN AL PRESIONAR BOTONES SUPERIORES
       if btn_vaciar:
         st.session_state.carrito = {}
         st.rerun()
@@ -425,7 +452,7 @@ with tab1:
           st.success(f"¡Venta {correlativo} registrada correctamente!")
           st.rerun()
 
-      # DETALLE DE PRODUCTOS SELECCIONADOS
+      # DETALLE DE PRODUCTOS SELECCIONADOS EN CARRITO
       st.markdown("---")
       if st.session_state.carrito:
         st.write("**Productos en Carrito:**")
