@@ -1,86 +1,130 @@
-import sqlite3
-import pandas as pd
 import streamlit as st
+import sqlite3
+from datetime import datetime
+from config import DB_NAME
 from database import get_connection
 
 def render_ventas_del_dia():
-    st.subheader("📋 Ventas del Día de Hoy")
-    conn = get_connection()
+    st.markdown("### 📋 Historial de Ventas del Día")
     
-    query = """
-        SELECT 
-            v.correlativo AS 'N° Boleta',
-            v.fecha AS 'Fecha / Hora',
-            v.metodo AS 'Método Pago',
-            v.total AS 'Total (S/)',
-            GROUP_CONCAT(p.nombre || ' (x' || dv.cantidad || ')', ', ') AS 'Detalle Productos'
-        FROM ventas v
-        JOIN detalle_venta dv ON v.id = dv.venta_id
-        JOIN productos p ON dv.producto_id = p.id
-        WHERE date(v.fecha) = date('now', 'localtime')
-        GROUP BY v.id
-        ORDER BY v.id DESC
-    """
-    df_hoy = pd.read_sql_query(query, conn)
+    fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+    
+    conn = get_connection()
+    c = conn.cursor()
+    
+    # Consultar ventas del día actual
+    c.execute("""
+        SELECT correlativo, total, metodo, monto_efectivo, monto_digital, fecha 
+        FROM ventas 
+        WHERE fecha LIKE ? 
+        ORDER BY id DESC
+    """, (f"{fecha_hoy}%",))
+    
+    ventas = c.fetchall()
+    
+    if not ventas:
+        st.info("ℹ️ Aún no se han registrado ventas el día de hoy.")
+    else:
+        # Resumen rápido del día
+        total_dia = sum(v["total"] for v in ventas)
+        efectivo_dia = sum(v["monto_efectivo"] for v in ventas)
+        digital_dia = sum(v["monto_digital"] for v in ventas)
+        
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Total Vendido Hoy", f"S/ {total_dia:.2f}")
+        c2.metric("Total Efectivo", f"S/ {efectivo_dia:.2f}")
+        c3.metric("Total Digital (Yape/Plin)", f"S/ {digital_dia:.2f}")
+        
+        st.markdown("---")
+        
+        # Tabla de ventas
+        for v in ventas:
+            with st.expander(f"🧾 {v['correlativo']} — S/ {v['total']:.2f} ({v['metodo']}) — 🕒 {v['fecha'].split(' ')[1]}"):
+                st.write(f"**Método de Pago:** {v['metodo']}")
+                st.write(f"**Efectivo:** S/ {v['monto_efectivo']:.2f} | **Digital:** S/ {v['monto_digital']:.2f}")
+                
+                # Detalle de productos de esta venta
+                c.execute("""
+                    SELECT producto_nombre, cantidad, precio_unitario, subtotal 
+                    FROM detalle_ventas 
+                    WHERE correlativo = ?
+                """, (v['correlativo'],))
+                detalles = c.fetchall()
+                
+                st.markdown("**Productos:**")
+                for d in detalles:
+                    st.write(f"• {d['producto_nombre']} x{d['cantidad']} — S/ {d['subtotal']:.2f} (S/ {d['precio_unitario']:.2f} c/u)")
+                    
     conn.close()
 
-    if not df_hoy.empty:
-        st.dataframe(df_hoy, use_container_width=True)
-        total_hoy = df_hoy["Total (S/)"].sum()
-        st.success(f"💰 Total Recaudado Hoy: **S/ {total_hoy:.2f}** ({len(df_hoy)} ventas)")
-    else:
-        st.info("No hay ventas registradas el día de hoy.")
 
 def render_control_caja(pin_admin):
-    st.subheader("🔒 Control y Cierre de Caja")
-    clave = st.text_input("Contraseña de Administrador", type="password", key="pass_cierre_caja")
-
-    if clave == pin_admin:
-        conn = get_connection()
-        c = conn.cursor()
-        c.execute("SELECT * FROM caja WHERE estado = 'ABIERTA'")
-        caja_activa = c.fetchone()
-
-        if caja_activa:
-            caja_id, monto_inicial, _, _, _, fecha_apertura, _, _ = caja_activa
-            st.success(f"🟢 Caja ABIERTA desde: **{fecha_apertura}**")
-            st.write(f"💵 Monto Inicial en Caja: **S/ {monto_inicial:.2f}**")
-
-            # Ventas de este turno en efectivo y digital
-            query_ef = "SELECT SUM(monto_efectivo) FROM ventas WHERE fecha >= ?"
-            query_dig = "SELECT SUM(monto_digital) FROM ventas WHERE fecha >= ?"
-            
-            c.execute(query_ef, (fecha_apertura,))
-            tot_efectivo = c.fetchone()[0] or 0.0
-
-            c.execute(query_dig, (fecha_apertura,))
-            tot_digital = c.fetchone()[0] or 0.0
-
-            conn.close()
-
-            m1, m2, m3 = st.columns(3)
-            m1.metric("💵 Ingresos Efectivo", f"S/ {tot_efectivo:.2f}")
-            m2.metric("📲 Ingresos Digitales (Yape/Plin)", f"S/ {tot_digital:.2f}")
-            
-            # CORRECCIÓN CLAVE: El monto final físico en caja solo suma EFECTIVO
-            efectivo_total_en_caja = monto_inicial + tot_efectivo
-            m3.metric("💰 Efectivo Físico en Caja", f"S/ {efectivo_total_en_caja:.2f}")
-
-            st.markdown("---")
-            if st.button("🔒 CERRAR CAJA Y FINALIZAR TURNO", use_container_width=True):
-                conn_close = get_connection()
-                c_close = conn_close.cursor()
-                fecha_cierre = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
-                c_close.execute(
-                    "UPDATE caja SET monto_final = ?, monto_efectivo = ?, monto_digital = ?, fecha_cierre = ?, estado = 'CERRADA' WHERE id = ?",
-                    (efectivo_total_en_caja, tot_efectivo, tot_digital, fecha_cierre, caja_id)
-                )
-                conn_close.commit()
-                conn_close.close()
-                st.success("¡Caja Cerrada Correctamente!")
+    st.markdown("### 🔒 Control y Arqueo de Caja")
+    
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM caja WHERE estado = 'ABIERTA'")
+    caja_activa = c.fetchone()
+    
+    if caja_activa:
+        st.success(f"🟢 **CAJA ABIERTA** desde: {caja_activa['fecha_apertura']}")
+        st.write(f"**Monto Inicial en Caja:** S/ {caja_activa['monto_inicial']:.2f}")
+        
+        # Calcular ventas acumuladas durante este turno
+        fecha_apertura = caja_activa['fecha_apertura']
+        c.execute("SELECT SUM(total), SUM(monto_efectivo), SUM(monto_digital) FROM ventas WHERE fecha >= ?", (fecha_apertura,))
+        res_ventas = c.fetchone()
+        
+        tot_ventas = res_ventas[0] if res_ventas[0] else 0.0
+        tot_ef = res_ventas[1] if res_ventas[1] else 0.0
+        tot_dig = res_ventas[2] if res_ventas[2] else 0.0
+        
+        efectivo_esperado = caja_activa['monto_inicial'] + tot_ef
+        
+        st.markdown("---")
+        st.markdown("#### 📊 Arqueo en Tiempo Real")
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Ventas Totales Turno", f"S/ {tot_ventas:.2f}")
+        col2.metric("Efectivo Esperado en Caja", f"S/ {efectivo_esperado:.2f}")
+        col3.metric("Digital (Yape/Plin)", f"S/ {tot_dig:.2f}")
+        
+        st.markdown("---")
+        st.markdown("#### 🔴 Cierre de Caja")
+        monto_real_ef = st.number_input("Monto de Efectivo Real Contado en Caja (S/):", min_value=0.0, value=efectivo_esperado)
+        pin_ingresado = st.text_input("PIN de Administrador para Cerrar:", type="password", key="pin_close")
+        
+        if st.button("🔒 CERRAR CAJA Y REPORTE", use_container_width=True):
+            if pin_ingresado == pin_admin:
+                fecha_cierre = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                c.execute("""
+                    UPDATE caja 
+                    SET fecha_cierre = ?, monto_final = ?, estado = 'CERRADA' 
+                    WHERE id = ?
+                """, (fecha_cierre, monto_real_ef, caja_activa['id']))
+                conn.commit()
+                st.success("¡Caja cerrada correctamente!")
                 st.rerun()
-        else:
-            conn.close()
-            st.info("La caja está CERRADA actualmente.")
-    elif clave:
-        st.error("Contraseña incorrecta")
+            else:
+                st.error("❌ PIN Incorrecto")
+    else:
+        st.warning("🔴 **LA CAJA SE ENCUENTRA CERRADA**")
+        st.markdown("#### 🔓 Abrir Turno de Caja")
+        
+        c1, c2 = st.columns(2)
+        monto_ini = c1.number_input("Monto Inicial en Caja (S/):", min_value=0.0, value=0.0, step=5.0)
+        pin_ingresado = c2.text_input("PIN de Administrador:", type="password", key="pin_open")
+        
+        if st.button("🔓 ABRIR CAJA", use_container_width=True):
+            if pin_ingresado == pin_admin:
+                fecha_ap = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                c.execute("""
+                    INSERT INTO caja (monto_inicial, fecha_apertura, estado) 
+                    VALUES (?, ?, 'ABIERTA')
+                """, (monto_ini, fecha_ap))
+                conn.commit()
+                st.success("¡Caja abierta exitosamente!")
+                st.rerun()
+            else:
+                st.error("❌ PIN Incorrecto")
+                
+    conn.close()
