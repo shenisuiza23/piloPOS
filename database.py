@@ -1,143 +1,68 @@
-from datetime import datetime
 import sqlite3
-from config import DB_NAME
+from datetime import datetime
 
-
-def get_connection():
-  conn = sqlite3.connect(DB_NAME, check_same_thread=False)
-  conn.row_factory = sqlite3.Row
-  return conn
-
+DB_NAME = "pilo_pos.db"
 
 def inicializar_bd():
-  conn = get_connection()
-  c = conn.cursor()
-
-  # Tabla de Productos
-  c.execute("""
+    conexion = sqlite3.connect(DB_NAME)
+    cursor = conexion.cursor()
+    
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS productos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nombre TEXT NOT NULL,
-            categoria TEXT NOT NULL,
+            categoria TEXT DEFAULT 'Otros',
             precio REAL NOT NULL,
-            stock INTEGER NOT NULL,
-            tipo TEXT
+            stock INTEGER DEFAULT 50
         )
     """)
-
-  # Tabla de Ventas (Estructura base)
-  c.execute("""
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS ventas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            correlativo TEXT NOT NULL,
-            total REAL NOT NULL,
-            metodo TEXT NOT NULL,
-            monto_efectivo REAL DEFAULT 0.0,
-            monto_digital REAL DEFAULT 0.0,
-            fecha TEXT NOT NULL
+            correlativo TEXT, total REAL, metodo TEXT,
+            monto_efectivo REAL, monto_digital REAL, fecha TEXT, detalle TEXT
         )
     """)
-
-  # Asegurarnos de que si la tabla ya existía, se agreguen las columnas nuevas sin borrar nada
-  try:
-    c.execute(
-        "ALTER TABLE ventas ADD COLUMN monto_efectivo REAL DEFAULT 0.0"
-    )
-  except Exception:
-    pass
-
-  try:
-    c.execute("ALTER TABLE ventas ADD COLUMN monto_digital REAL DEFAULT 0.0")
-  except Exception:
-    pass
-
-  # Tabla de Detalle de Ventas
-  c.execute("""
-        CREATE TABLE IF NOT EXISTS detalle_ventas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            correlativo TEXT NOT NULL,
-            producto_id INTEGER NOT NULL,
-            producto_nombre TEXT NOT NULL,
-            cantidad INTEGER NOT NULL,
-            precio_unitario REAL NOT NULL,
-            subtotal REAL NOT NULL
-        )
-    """)
-
-  # Tabla de Caja
-  c.execute("""
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS caja (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            monto_inicial REAL NOT NULL,
-            fecha_apertura TEXT NOT NULL,
-            fecha_cierre TEXT,
-            monto_final REAL,
-            estado TEXT NOT NULL
+            monto_inicial REAL, monto_final REAL,
+            fecha_apertura TEXT, fecha_cierre TEXT, estado TEXT
         )
     """)
+    
+    cursor.execute("SELECT COUNT(*) FROM productos")
+    if cursor.fetchone()[0] == 0:
+        prods = [
+            ("Pizza Americana Personal", "Pizzas", 25.00), ("Pizza Hawaiana Personal", "Pizzas", 25.00),
+            ("Pizza Pepperoni Personal", "Pizzas", 25.00), ("Pizza Pilo Personal", "Pizzas", 28.00),
+            ("Pizza Americana Familiar", "Pizzas", 45.00), ("Pizza Hawaiana Familiar", "Pizzas", 45.00),
+            ("Pizza Pepperoni Familiar", "Pizzas", 45.00), ("Pizza Pilo Familiar", "Pizzas", 50.00),
+            ("Alitas Rebozadas", "Alitas", 20.00), ("Alitas BBQ", "Alitas", 22.00),
+            ("Alitas Acevichadas", "Alitas", 22.00), ("Alitas Búfalo", "Alitas", 22.00),
+            ("Alitas Pilo", "Alitas", 24.00), ("Hamburguesa Clásica", "Hamburguesas", 6.00),
+            ("Hamburguesa Hawaiana", "Hamburguesas", 8.00), ("Hamburguesa A lo Pilo", "Hamburguesas", 9.00),
+            ("Hamburguesa A lo Pobre", "Hamburguesas", 10.00), ("Hamburguesa Royal", "Hamburguesas", 14.00),
+            ("Hamburguesa Mega Pilo", "Hamburguesas", 16.00), ("Choripán", "Entradas", 6.00),
+            ("Salchipapa Clásica", "Entradas", 8.00), ("Salchalita", "Entradas", 16.00),
+            ("Porción de Papa", "Extras", 5.00), ("Porción de Maduro", "Extras", 5.00),
+            ("Inca Kola", "Bebidas", 5.00), ("Coca Cola", "Bebidas", 5.00), ("Chicha Morada", "Bebidas", 3.00)
+        ]
+        cursor.executemany("INSERT INTO productos (nombre, categoria, precio) VALUES (?, ?, ?)", prods)
+    
+    conexion.commit()
+    conexion.close()
 
-  # Productos Demo
-  c.execute("SELECT COUNT(*) FROM productos")
-  if c.fetchone()[0] == 0:
-    productos_def = [
-        ("Pizza Americana Familiar", "Pizzas", 45.00, 30, "Comida"),
-        ("Pizza Hawaiana Familiar", "Pizzas", 45.00, 30, "Comida"),
-        ("Pizza Pepperoni Familiar", "Pizzas", 45.00, 30, "Comida"),
-        ("Pizza Pilo Familiar", "Pizzas", 50.00, 30, "Comida"),
-        ("Alitas 6 piezas", "Alitas", 18.00, 50, "Comida"),
-        ("Alitas 12 piezas", "Alitas", 32.00, 50, "Comida"),
-        ("Hamburguesa Clásica", "Hamburguesas", 15.00, 40, "Comida"),
-        ("Hamburguesa Pilo Royale", "Hamburguesas", 22.00, 40, "Comida"),
-        ("Papas Fritas", "Entradas", 10.00, 60, "Comida"),
-        ("Coca Cola 500ml", "Otros", 5.00, 100, "Bebida"),
-        ("Chicha Morada", "Otros", 3.00, 100, "Bebida"),
-    ]
-    c.executemany(
-        "INSERT INTO productos (nombre, categoria, precio, stock, tipo) VALUES"
-        " (?, ?, ?, ?, ?)",
-        productos_def,
-    )
-
-  conn.commit()
-  conn.close()
-
-
-def generar_correlativo_boleta():
-  conn = get_connection()
-  c = conn.cursor()
-  c.execute("SELECT COUNT(*) FROM ventas")
-  num = c.fetchone()[0] + 1
-  conn.close()
-  return f"B001-{num:06d}"
-
-
-def registrar_venta_completa(
-    correlativo, total, metodo, monto_ef, monto_dig, carrito
-):
-  conn = get_connection()
-  c = conn.cursor()
-  fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-  # Guardar Venta
-  c.execute(
-      "INSERT INTO ventas (correlativo, total, metodo, monto_efectivo,"
-      " monto_digital, fecha) VALUES (?, ?, ?, ?, ?, ?)",
-      (correlativo, total, metodo, monto_ef, monto_dig, fecha_actual),
-  )
-
-  # Guardar Detalle y Descontar Stock
-  for p_id, item in carrito.items():
-    subt = item["precio"] * item["cant"]
-    c.execute(
-        "INSERT INTO detalle_ventas (correlativo, producto_id, producto_nombre,"
-        " cantidad, precio_unitario, subtotal) VALUES (?, ?, ?, ?, ?, ?)",
-        (correlativo, p_id, item["nombre"], item["cant"], item["precio"], subt),
-    )
-    c.execute(
-        "UPDATE productos SET stock = stock - ? WHERE id = ?",
-        (item["cant"], p_id),
-    )
-
-  conn.commit()
-  conn.close()
-  return fecha_actual
+def registrar_venta(total, metodo, monto_ef, monto_dig, carrito):
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM ventas")
+    correlativo = f"B001-{(c.fetchone()[0] + 1):06d}"
+    fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    detalle = ", ".join([f"{item['cant']}x {item['nombre']}" for item in carrito.values()])
+    
+    c.execute("INSERT INTO ventas (correlativo, total, metodo, monto_efectivo, monto_digital, fecha, detalle) VALUES (?, ?, ?, ?, ?, ?, ?)",
+              (correlativo, total, metodo, monto_ef, monto_dig, fecha, detalle))
+    conn.commit()
+    conn.close()
+    return correlativo
