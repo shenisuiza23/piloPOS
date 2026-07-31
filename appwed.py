@@ -7,23 +7,33 @@ from datetime import datetime
 st.set_page_config(page_title="Pilo POS Mobile", page_icon="🍗", layout="wide")
 
 PIN_ADMIN = "200423"
-DB_NAME = "pos_v2.db"
+DB_NAME = "pos_v5.db"
 
-# Estilos personalizados (Botón verde llamativo)
+# Estilos personalizados (Botones naranjas para categorías, verde para cobrar)
 st.markdown("""
     <style>
-    div.stButton > button:first-child {
+    /* Botones de Categorías estilo Cuadrado Naranja */
+    div.stButton > button {
+        background-color: #FF8C00 !important;
+        color: white !important;
+        font-weight: bold !important;
+        border-radius: 8px !important;
+        border: none !important;
+    }
+    
+    /* Botón verde grande para Registrar Venta */
+    .btn-cobrar > div.stButton > button {
         background-color: #28a745 !important;
         color: white !important;
         font-size: 20px !important;
         font-weight: bold !important;
-        height: 3em !important;
+        height: 3.2em !important;
         border-radius: 10px !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- BASE DE DATOS ---
+# --- BASE DE DATOS CON TU MENÚ REAL ---
 def inicializar_bd():
     conexion = sqlite3.connect(DB_NAME)
     cursor = conexion.cursor()
@@ -32,8 +42,10 @@ def inicializar_bd():
         CREATE TABLE IF NOT EXISTS productos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nombre TEXT NOT NULL,
+            categoria TEXT DEFAULT 'Otros',
             precio REAL NOT NULL,
-            categoria TEXT DEFAULT 'Otros'
+            stock INTEGER DEFAULT 50,
+            tipo TEXT DEFAULT 'Gral'
         )
     """)
     
@@ -60,18 +72,46 @@ def inicializar_bd():
     cursor.execute("SELECT COUNT(*) FROM productos")
     if cursor.fetchone()[0] == 0:
         productos_defecto = [
-            ("Alitas 6 Pzs", 15.00, "Alitas"),
-            ("Alitas 12 Pzs", 28.00, "Alitas"),
-            ("Alitas 18 Pzs", 40.00, "Alitas"),
-            ("Hamburguesa Clásica", 6.00, "Hamburguesas"),
-            ("Hamburguesa Hawaiana", 8.00, "Hamburguesas"),
-            ("Hamburguesa Royal", 14.00, "Hamburguesas"),
-            ("Hamburguesa Pilo", 9.00, "Hamburguesas"),
-            ("Hamburguesa Mega Pilo", 16.00, "Hamburguesas"),
-            ("Gaseosa 500ml", 4.00, "Bebidas"),
-            ("Chicha Morada", 5.00, "Bebidas")
+            ("Pizza Americana Personal", "Pizzas", 25.00, 50, "Personal"),
+            ("Pizza Hawaiana Personal", "Pizzas", 25.00, 50, "Personal"),
+            ("Pizza Peperoni Personal", "Pizzas", 25.00, 50, "Personal"),
+            ("Pizza Pilo Personal", "Pizzas", 28.00, 50, "Personal"),
+            ("Pizza Americana Familiar", "Pizzas", 45.00, 50, "Familiar"),
+            ("Pizza Hawaiana Familiar", "Pizzas", 45.00, 50, "Familiar"),
+            ("Pizza Peperoni Familiar", "Pizzas", 45.00, 50, "Familiar"),
+            ("Pizza Pilo Familiar", "Pizzas", 50.00, 50, "Familiar"),
+            ("Alitas Rebozadas", "Alitas", 20.00, 50, "Porción"),
+            ("Alitas BBQ", "Alitas", 22.00, 50, "Porción"),
+            ("Alitas Acevichadas", "Alitas", 22.00, 50, "Porción"),
+            ("Alitas Búfalo", "Alitas", 22.00, 50, "Porción"),
+            ("Alitas Pilo", "Alitas", 24.00, 50, "Porción"),
+            ("Hamburguesa Clásica", "Hamburguesas", 6.00, 50, "Clásica"),
+            ("Hamburguesa Hawaiana", "Hamburguesas", 8.00, 50, "Hawaiana"),
+            ("Hamburguesa Pilo", "Hamburguesas", 9.00, 50, "Pilo"),
+            ("Hamburguesa A lo pobre", "Hamburguesas", 10.00, 50, "A lo pobre"),
+            ("Hamburguesa Royal", "Hamburguesas", 14.00, 50, "Royal"),
+            ("Hamburguesa Mega Pilo", "Hamburguesas", 16.00, 50, "Mega Pilo"),
+            ("Choripan", "Entradas", 6.00, 50, "Tradicional"),
+            ("Salchipapa Clásica", "Entradas", 8.00, 50, "Clásica"),
+            ("Salchialita", "Entradas", 16.00, 50, "Especial"),
+            ("Porción de Papa", "Otros", 5.00, 100, "Extra"),
+            ("Porción de Maduro", "Otros", 5.00, 100, "Extra"),
+            ("Porción de Alitas (x ud)", "Otros", 4.00, 100, "Extra"),
+            ("Porción de Salchicha", "Otros", 3.00, 100, "Extra"),
+            ("Carne de Hamburguesa", "Otros", 4.00, 100, "Extra"),
+            ("Porción de Huevo", "Otros", 1.00, 100, "Extra"),
+            ("Jamón y Tocino", "Otros", 2.00, 100, "Extra"),
+            ("Porción de Piña", "Otros", 1.00, 100, "Extra"),
+            ("Queso Hamburguesa", "Otros", 1.00, 100, "Extra"),
+            ("Queso Pizza", "Otros", 3.00, 100, "Extra"),
+            ("Agua Mineral", "Otros", 2.00, 100, "Bebida"),
+            ("Agua Mineral San Luis", "Otros", 3.00, 100, "Bebida"),
+            ("Inca Kola", "Otros", 5.00, 100, "Bebida"),
+            ("Coca Cola", "Otros", 5.00, 100, "Bebida"),
+            ("Chicha Morada", "Otros", 3.00, 100, "Bebida"),
+            ("Cocina", "Otros", 3.00, 100, "Bebida")
         ]
-        cursor.executemany("INSERT INTO productos (nombre, precio, categoria) VALUES (?, ?, ?)", productos_defecto)
+        cursor.executemany("INSERT INTO productos (nombre, categoria, precio, stock, tipo) VALUES (?, ?, ?, ?, ?)", productos_defecto)
     
     conexion.commit()
     conexion.close()
@@ -89,7 +129,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
 ])
 
 # ---------------------------------------------------------
-# PESTAÑA 1: PUNTO DE VENTA (CON APERTURA DE CAJA)
+# PESTAÑA 1: PUNTO DE VENTA
 # ---------------------------------------------------------
 with tab1:
     conn = sqlite3.connect(DB_NAME)
@@ -99,8 +139,8 @@ with tab1:
     conn.close()
 
     if not caja_activa:
-        st.warning("⚠️ La caja está CERRADA. Debes realizar la apertura con contraseña para empezar a vender.")
-        clave_apertura = st.text_input("Contraseña para Abrir Caja", type="password", key="pass_open")
+        st.warning("⚠️ La caja está CERRADA. Ingresa la contraseña y monto para abrir caja e iniciar las ventas.")
+        clave_apertura = st.text_input("Contraseña de Apertura", type="password", key="pass_open")
         monto_ini = st.number_input("Monto Inicial en Caja (S/):", min_value=0.0, value=0.0, step=5.0)
         
         if st.button("🔓 ABRIR CAJA E INICIAR VENTAS"):
@@ -118,18 +158,32 @@ with tab1:
     else:
         st.success(f"🟢 Caja Abierta con S/ {caja_activa[1]:.2f}")
         
+        # Obtener categorías existentes en la BD
         conn = sqlite3.connect(DB_NAME)
         c = conn.cursor()
         c.execute("SELECT DISTINCT categoria FROM productos")
         cats = [row[0] for row in c.fetchall()]
+        conn.close()
+
+        st.write("### Categorías:")
+        if "cat_seleccionada" not in st.session_state or st.session_state.cat_seleccionada not in cats:
+            st.session_state.cat_seleccionada = cats[0] if cats else "Alitas"
+            
+        cols_cat = st.columns(len(cats))
+        for idx, cat in enumerate(cats):
+            if cols_cat[idx].button(f"🟧 {cat}", key=f"cat_btn_{cat}", use_container_width=True):
+                st.session_state.cat_seleccionada = cat
+
+        st.markdown("---")
         
-        cat_sel = st.radio("Categorías", cats, horizontal=True) if cats else "Alitas"
-        
-        c.execute("SELECT id, nombre, precio FROM productos WHERE categoria = ?", (cat_sel,))
+        # Obtener productos de la categoría elegida
+        conn = sqlite3.connect(DB_NAME)
+        c = conn.cursor()
+        c.execute("SELECT id, nombre, precio FROM productos WHERE categoria = ?", (st.session_state.cat_seleccionada,))
         prods = c.fetchall()
         conn.close()
         
-        st.subheader("Menú de Productos")
+        st.subheader(f"Menú: {st.session_state.cat_seleccionada}")
         col1, col2 = st.columns(2)
         for i, (p_id, p_nom, p_precio) in enumerate(prods):
             col = col1 if i % 2 == 0 else col2
@@ -150,6 +204,7 @@ with tab1:
             total = sum(item["precio"] for item in st.session_state.carrito)
             st.markdown(f"## **Total a cobrar: S/ {total:.2f}**")
             
+            st.markdown('<div class="btn-cobrar">', unsafe_allow_html=True)
             if st.button("🚀 REGISTRAR VENTA", use_container_width=True):
                 conn = sqlite3.connect(DB_NAME)
                 c = conn.cursor()
@@ -161,6 +216,7 @@ with tab1:
                 st.session_state.carrito = []
                 st.success(f"¡Venta Registrada! ({metodo_pago})")
                 st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
                 
             if st.button("🗑️ Vaciar Carrito", use_container_width=True):
                 st.session_state.carrito = []
