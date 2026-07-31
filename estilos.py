@@ -3,28 +3,52 @@ import streamlit as st
 def aplicar_estilos_css(cat_activa="Pizzas"):
     css = """
     <style>
-        /* Fondo negro total */
-        .stApp { background-color: #0b0c0e !important; }
-
-        /* Ocultar espacios vacíos de Streamlit */
-        header[data-testid="stHeader"], footer { display: none !important; }
-        .main .block-container { padding-top: 0.5rem !important; max-width: 100% !important; }
-
-        /* Tarjetas de productos oscuras y con texto claro */
-        div[data-testid="stVerticalBlock"] div.stButton > button {
-            background-color: #161922 !important;
+        /* Fondo principal oscuro estilo POS */
+        .stApp {
+            background-color: #0d0f14 !important;
             color: #ffffff !important;
-            border: 1px solid #232734 !important;
-            border-radius: 8px !important;
-            font-size: 16px !important;
-            font-weight: bold !important;
-            min-height: 60px !important;
         }
 
-        /* Total en Verde Neón */
-        .stMarkdown div[data-testid="stMarkdownContainer"] h1, 
-        .stMarkdown div[data-testid="stMarkdownContainer"] h2 {
-            color: #22c55e !important;
+        /* Ocultar barra superior por defecto de Streamlit */
+        header[data-testid="stHeader"], footer {
+            display: none !important;
+        }
+
+        .main .block-container {
+            padding-top: 1rem !important;
+            max-width: 100% !important;
+        }
+
+        /* Pestañas (Tabs) estilo naranja / activo */
+        button[data-baseweb="tab"] {
+            color: #9ca3af !important;
+            font-weight: bold !important;
+            font-size: 15px !important;
+        }
+        button[aria-selected="true"] {
+            color: #ef4444 !important; /* Color naranja/rojo del tab activo */
+            border-bottom-color: #ef4444 !important;
+        }
+
+        /* Tarjetas desplegables del historial de ventas */
+        div[data-testid="stExpander"] {
+            background-color: #141720 !important;
+            border: 1px solid #232836 !important;
+            border-radius: 8px !important;
+            margin-bottom: 6px !important;
+        }
+
+        div[data-testid="stExpander"] summary {
+            color: #ffffff !important;
+            font-weight: 600 !important;
+            font-size: 14px !important;
+        }
+
+        /* Totales en Grande (Efectivo / Ventas) */
+        div[data-testid="stMetricValue"] {
+            font-size: 32px !important;
+            font-weight: 900 !important;
+            color: #ffffff !important;
         }
     </style>
     """
