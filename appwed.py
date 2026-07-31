@@ -416,17 +416,15 @@ TOTAL: S/ {uv['total']:.2f}
 with tab2:
     st.subheader("📋 Registro de Ventas Realizadas")
     conn = sqlite3.connect(DB_NAME)
-    try:
-        df_ventas = pd.read_sql_query("SELECT correlativo AS Boleta, detalle AS Detalle, total AS 'Total S/', metodo AS Método, fecha AS Fecha FROM ventas ORDER BY id DESC", conn)
-        if not df_ventas.empty:
-            st.dataframe(df_ventas, use_container_width=True)
-            total_hoy = df_ventas["Total S/"].sum()
-            st.metric("Total Recaudado Hoy", f"S/ {total_hoy:.2f}")
-        else:
-            st.info("Aún no hay ventas registradas el día de hoy.")
-    except Exception:
-        st.info("Sin registros de ventas por ahora.")
+    df_ventas = pd.read_sql_query("SELECT correlativo AS Boleta, detalle AS Detalle, total AS 'Total S/', metodo AS Método, fecha AS Fecha FROM ventas ORDER BY id DESC", conn)
     conn.close()
+
+    if not df_ventas.empty:
+        st.dataframe(df_ventas, use_container_width=True)
+        total_hoy = df_ventas["Total S/"].sum()
+        st.metric("Total Recaudado Hoy", f"S/ {total_hoy:.2f}")
+    else:
+        st.info("Aún no hay ventas registradas el día de hoy.")
 
 # ---------------------------------------------------------
 # PESTAÑA 3: CONTROL DE CAJA
@@ -487,5 +485,8 @@ with tab4:
 
     if clave_rep == PIN_ADMIN:
         conn = sqlite3.connect(DB_NAME)
-        try:
-            df_ventas = pd.read_sql_
+        df_ventas = pd.read_sql_query("SELECT * FROM ventas", conn)
+        conn.close()
+
+        if not df_ventas.empty:
+            total_ventas = df_ventas["t
