@@ -13,20 +13,19 @@ DB_NAME = "pos_v6.db"
 if "cat_seleccionada" not in st.session_state:
     st.session_state.cat_seleccionada = "Pizzas"
 
-# Paleta de Colores
+# Paleta de Colores por Categoría
 COLORES = {
     "Pizzas": {"bg": "#2b5c8f", "text": "white"},        # Azul
     "Alitas": {"bg": "#c69214", "text": "white"},        # Amarillo
     "Hamburguesas": {"bg": "#d97724", "text": "white"},  # Naranja
     "Entradas": {"bg": "#2e7d32", "text": "white"},      # Verde
-    "Otros": {"bg": "#38bdf8", "text": "#0f172a"}        # Celeste claro (texto oscuro)
+    "Otros": {"bg": "#38bdf8", "text": "#0f172a"}        # Celeste
 }
 
-# Obtener color para los productos actuales según categoría activa
-bg_prod = COLORES[st.session_state.cat_seleccionada]["bg"]
-text_prod = COLORES[st.session_state.cat_seleccionada]["text"]
+bg_actual = COLORES[st.session_state.cat_seleccionada]["bg"]
+text_actual = COLORES[st.session_state.cat_seleccionada]["text"]
 
-# Inyección CSS con máxima prioridad (!important) usando claves directas de Streamlit
+# Inyección CSS con Scope Aislado
 st.markdown(f"""
     <style>
     /* Ajuste de fuente base */
@@ -34,7 +33,7 @@ st.markdown(f"""
         font-size: 17px !important;
     }}
 
-    /* Estilos generales de todos los botones */
+    /* Estilo general para todos los botones */
     div.stButton > button {{
         font-weight: bold !important;
         font-size: 18px !important;
@@ -44,20 +43,20 @@ st.markdown(f"""
         box-shadow: 0px 3px 6px rgba(0,0,0,0.3) !important;
     }}
 
-    /* --- BOTONES DE CATEGORÍAS (ENCABEZADOS) --- */
-    div[data-testid="stColumn"]:nth-child(1) div.stButton > button {{ background-color: #2b5c8f !important; color: white !important; }}
-    div[data-testid="stColumn"]:nth-child(2) div.stButton > button {{ background-color: #c69214 !important; color: white !important; }}
-    div[data-testid="stColumn"]:nth-child(3) div.stButton > button {{ background-color: #d97724 !important; color: white !important; }}
-    div[data-testid="stColumn"]:nth-child(4) div.stButton > button {{ background-color: #2e7d32 !important; color: white !important; }}
-    div[data-testid="stColumn"]:nth-child(5) div.stButton > button {{ background-color: #38bdf8 !important; color: #0f172a !important; }}
+    /* 1. BOTONES SUPERIORES DE CATEGORÍAS (Usamos las claves del botón directamente) */
+    div[data-testid="stKey-cat_btn_Pizzas"] button {{ background-color: #2b5c8f !important; color: white !important; }}
+    div[data-testid="stKey-cat_btn_Alitas"] button {{ background-color: #c69214 !important; color: white !important; }}
+    div[data-testid="stKey-cat_btn_Hamburguesas"] button {{ background-color: #d97724 !important; color: white !important; }}
+    div[data-testid="stKey-cat_btn_Entradas"] button {{ background-color: #2e7d32 !important; color: white !important; }}
+    div[data-testid="stKey-cat_btn_Otros"] button {{ background-color: #38bdf8 !important; color: #0f172a !important; }}
 
-    /* --- PRODUCTOS (Pinta TODOS del mismo color de la categoría activa) --- */
-    div[data-testid="stElementContainer"]:has(div.stButton) button {{
-        background-color: {bg_prod} !important;
-        color: {text_prod} !important;
+    /* 2. PRODUCTOS ABAJO (Pinta TODOS los botones de productos con el mismo color de la categoría activa) */
+    div[data-testid="stKey-prod_zone"] div.stButton > button {{
+        background-color: {bg_actual} !important;
+        color: {text_actual} !important;
     }}
 
-    /* --- EXCEPCIONES: BOTONES COBRAR Y VACIAR --- */
+    /* 3. BOTONES DE ACCIÓN (Cobrar y Vaciar) */
     div[data-testid="stKey-btn_cobrar"] button {{
         background-color: #2e7d32 !important;
         color: white !important;
@@ -220,15 +219,17 @@ with tab1:
             
             st.subheader(f"Menú: {st.session_state.cat_seleccionada}")
             
-            m_col1, m_col2 = st.columns(2)
-            for i, (p_id, p_nom, p_precio) in enumerate(prods):
-                col = m_col1 if i % 2 == 0 else m_col2
-                with col:
-                    if st.button(f"{p_nom}\nS/ {p_precio:.2f}", key=f"p_{p_id}", use_container_width=True):
-                        if "carrito" not in st.session_state:
-                            st.session_state.carrito = []
-                        st.session_state.carrito.append({"id": p_id, "nombre": p_nom, "precio": p_precio})
-                        st.toast(f"＋ {p_nom}")
+            # Encapsulamos el área de productos con la clave 'prod_zone'
+            with st.container(key="prod_zone"):
+                m_col1, m_col2 = st.columns(2)
+                for i, (p_id, p_nom, p_precio) in enumerate(prods):
+                    col = m_col1 if i % 2 == 0 else m_col2
+                    with col:
+                        if st.button(f"{p_nom}\nS/ {p_precio:.2f}", key=f"p_{p_id}", use_container_width=True):
+                            if "carrito" not in st.session_state:
+                                st.session_state.carrito = []
+                            st.session_state.carrito.append({"id": p_id, "nombre": p_nom, "precio": p_precio})
+                            st.toast(f"＋ {p_nom}")
 
         with col_carrito:
             st.subheader("🛒 Pedido Actual")
