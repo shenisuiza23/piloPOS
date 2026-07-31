@@ -44,102 +44,75 @@ st.markdown("<br>", unsafe_allow_html=True)
 # 6. ESTRUCTURA PRINCIPAL: CATÁLOGO (IZQ) Y PEDIDO (DER)
 col_menu, col_pedido = st.columns([2.3, 1.1])
 
-# --- COLUMNA IZQUIERDA: MENÚ OFICIAL PILO BURGER ---
+# --- COLUMNA IZQUIERDA: MENÚ DE PRODUCTOS ---
 with col_menu:
     
-    # 🍕 PIZZAS (Azul #2563EB)
-    st.markdown("### 🍕 Pizzas")
-    st.markdown('<div class="prod-pizzas">', unsafe_allow_html=True)
-    c1, c2, c3, c4 = st.columns(4)
-    if c1.button("Pizza Americana Personal\n\nS/ 25.00", key="p1", use_container_width=True):
-        st.session_state.carrito.append({"nombre": "Pizza Americana Personal", "precio": 25.00})
-    if c2.button("Pizza Hawaiana Personal\n\nS/ 25.00", key="p2", use_container_width=True):
-        st.session_state.carrito.append({"nombre": "Pizza Hawaiana Personal", "precio": 25.00})
-    if c3.button("Pizza Peperoni Personal\n\nS/ 25.00", key="p3", use_container_width=True):
-        st.session_state.carrito.append({"nombre": "Pizza Peperoni Personal", "precio": 25.00})
-    if c4.button("Pizza Pilo Personal\n\nS/ 28.00", key="p4", use_container_width=True):
-        st.session_state.carrito.append({"nombre": "Pizza Pilo Personal", "precio": 28.00})
+    # LISTA OFICIAL DE PRODUCTOS (Nombre, Categoría, Precio, Key)
+    PRODUCTOS = [
+        # Pizzas (Azul #2563EB)
+        ("Pizza Americana Personal", "Pizzas", 25.00, "p1"),
+        ("Pizza Hawaiana Personal", "Pizzas", 25.00, "p2"),
+        ("Pizza Peperoni Personal", "Pizzas", 25.00, "p3"),
+        ("Pizza Pilo Personal", "Pizzas", 28.00, "p4"),
+        ("Pizza Americana Familiar", "Pizzas", 45.00, "p5"),
+        ("Pizza Hawaiana Familiar", "Pizzas", 45.00, "p6"),
+        ("Pizza Peperoni Familiar", "Pizzas", 45.00, "p7"),
+        ("Pizza Pilo Familiar", "Pizzas", 50.00, "p8"),
 
-    c5, c6, c7, c8 = st.columns(4)
-    if c5.button("Pizza Americana Familiar\n\nS/ 45.00", key="p5", use_container_width=True):
-        st.session_state.carrito.append({"nombre": "Pizza Americana Familiar", "precio": 45.00})
-    if c6.button("Pizza Hawaiana Familiar\n\nS/ 45.00", key="p6", use_container_width=True):
-        st.session_state.carrito.append({"nombre": "Pizza Hawaiana Familiar", "precio": 45.00})
-    if c7.button("Pizza Peperoni Familiar\n\nS/ 45.00", key="p7", use_container_width=True):
-        st.session_state.carrito.append({"nombre": "Pizza Peperoni Familiar", "precio": 45.00})
-    if c8.button("Pizza Pilo Familiar\n\nS/ 50.00", key="p8", use_container_width=True):
-        st.session_state.carrito.append({"nombre": "Pizza Pilo Familiar", "precio": 50.00})
-    st.markdown('</div>', unsafe_allow_html=True)
+        # Alitas (Amarillo #EAB308)
+        ("Alitas Rebozadas", "Alitas", 20.00, "a1"),
+        ("Alitas BBQ", "Alitas", 22.00, "a2"),
+        ("Alitas Acevichadas", "Alitas", 22.00, "a3"),
+        ("Alitas Búfalo", "Alitas", 22.00, "a4"),
+        ("Alitas Pilo", "Alitas", 24.00, "a5"),
 
-    # 🍗 ALITAS (Amarillo #EAB308)
-    st.markdown("### 🍗 Alitas")
-    st.markdown('<div class="prod-alitas">', unsafe_allow_html=True)
-    c1, c2, c3 = st.columns(3)
-    if c1.button("Alitas Rebozadas\n\nS/ 20.00", key="a1", use_container_width=True):
-        st.session_state.carrito.append({"nombre": "Alitas Rebozadas", "precio": 20.00})
-    if c2.button("Alitas BBQ\n\nS/ 22.00", key="a2", use_container_width=True):
-        st.session_state.carrito.append({"nombre": "Alitas BBQ", "precio": 22.00})
-    if c3.button("Alitas Acevichadas\n\nS/ 22.00", key="a3", use_container_width=True):
-        st.session_state.carrito.append({"nombre": "Alitas Acevichadas", "precio": 22.00})
+        # Hamburguesas (Naranja #F97316)
+        ("Hamb. Clásica", "Hamburguesas", 6.00, "h1"),
+        ("Hamb. Hawaiana", "Hamburguesas", 8.00, "h2"),
+        ("Hamb. Pilo", "Hamburguesas", 9.00, "h3"),
+        ("Hamb. A lo pobre", "Hamburguesas", 10.00, "h4"),
+        ("Hamb. Royal", "Hamburguesas", 14.00, "h5"),
+        ("Hamb. Mega Pilo", "Hamburguesas", 16.00, "h6"),
+
+        # Entradas (Verde #16A34A)
+        ("Choripan", "Entradas", 6.00, "e1"),
+        ("Salchipapa Clásica", "Entradas", 8.00, "e2"),
+        ("Salchialita", "Entradas", 16.00, "e3"),
+
+        # Otros y Bebidas (Celeste #0EA5E9)
+        ("Porción de Papa", "Otros", 5.00, "o1"),
+        ("Porción de Maduro", "Otros", 5.00, "o2"),
+        ("Porción Alitas (x ud)", "Otros", 4.00, "o3"),
+        ("Inca Kola 500ml", "Otros", 5.00, "o4"),
+        ("Coca Cola 500ml", "Otros", 5.00, "o5"),
+        ("Chicha Morada", "Otros", 3.00, "o6"),
+    ]
+
+    # CONFIGURACIÓN DE SECCIONES (Título, Clase CSS, Categoría, Columnas por fila)
+    SECCIONES = [
+        ("🍕 Pizzas", "prod-pizzas", "Pizzas", 4),
+        ("🍗 Alitas", "prod-alitas", "Alitas", 3),
+        ("🍔 Hamburguesas", "prod-burgers", "Hamburguesas", 3),
+        ("🍟 Entradas", "prod-entradas", "Entradas", 3),
+        ("🥤 Otros y Bebidas", "prod-otros", "Otros", 3)
+    ]
+
+    # RENDERIZADO AUTOMÁTICO DEL CATÁLOGO
+    for titulo, css_class, cat, num_cols in SECCIONES:
+        st.markdown(f"### {titulo}")
+        st.markdown(f'<div class="{css_class}">', unsafe_allow_html=True)
         
-    c4, c5 = st.columns(2)
-    if c4.button("Alitas Búfalo\n\nS/ 22.00", key="a4", use_container_width=True):
-        st.session_state.carrito.append({"nombre": "Alitas Búfalo", "precio": 22.00})
-    if c5.button("Alitas Pilo\n\nS/ 24.00", key="a5", use_container_width=True):
-        st.session_state.carrito.append({"nombre": "Alitas Pilo", "precio": 24.00})
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # 🍔 HAMBURGUESAS (Naranja #F97316)
-    st.markdown("### 🍔 Hamburguesas")
-    st.markdown('<div class="prod-burgers">', unsafe_allow_html=True)
-    c1, c2, c3 = st.columns(3)
-    if c1.button("Hamb. Clásica\n\nS/ 6.00", key="h1", use_container_width=True):
-        st.session_state.carrito.append({"nombre": "Hamburguesa Clásica", "precio": 6.00})
-    if c2.button("Hamb. Hawaiana\n\nS/ 8.00", key="h2", use_container_width=True):
-        st.session_state.carrito.append({"nombre": "Hamburguesa Hawaiana", "precio": 8.00})
-    if c3.button("Hamb. Pilo\n\nS/ 9.00", key="h3", use_container_width=True):
-        st.session_state.carrito.append({"nombre": "Hamburguesa Pilo", "precio": 9.00})
+        prods_cat = [p for p in PRODUCTOS if p[1] == cat]
         
-    c4, c5, c6 = st.columns(3)
-    if c4.button("Hamb. A lo pobre\n\nS/ 10.00", key="h4", use_container_width=True):
-        st.session_state.carrito.append({"nombre": "Hamburguesa A lo pobre", "precio": 10.00})
-    if c5.button("Hamb. Royal\n\nS/ 14.00", key="h5", use_container_width=True):
-        st.session_state.carrito.append({"nombre": "Hamburguesa Royal", "precio": 14.00})
-    if c6.button("Hamb. Mega Pilo\n\nS/ 16.00", key="h6", use_container_width=True):
-        st.session_state.carrito.append({"nombre": "Hamburguesa Mega Pilo", "precio": 16.00})
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # 🍟 ENTRADAS (Verde #16A34A)
-    st.markdown("### 🍟 Entradas")
-    st.markdown('<div class="prod-entradas">', unsafe_allow_html=True)
-    c1, c2, c3 = st.columns(3)
-    if c1.button("Choripan\n\nS/ 6.00", key="e1", use_container_width=True):
-        st.session_state.carrito.append({"nombre": "Choripan", "precio": 6.00})
-    if c2.button("Salchipapa Clásica\n\nS/ 8.00", key="e2", use_container_width=True):
-        st.session_state.carrito.append({"nombre": "Salchipapa Clásica", "precio": 8.00})
-    if c3.button("Salchialita\n\nS/ 16.00", key="e3", use_container_width=True):
-        st.session_state.carrito.append({"nombre": "Salchialita", "precio": 16.00})
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # 🥤 OTROS Y BEBIDAS (Celeste #0EA5E9)
-    st.markdown("### 🥤 Otros y Bebidas")
-    st.markdown('<div class="prod-otros">', unsafe_allow_html=True)
-    c1, c2, c3 = st.columns(3)
-    if c1.button("Porción de Papa\n\nS/ 5.00", key="o1", use_container_width=True):
-        st.session_state.carrito.append({"nombre": "Porción de Papa", "precio": 5.00})
-    if c2.button("Porción de Maduro\n\nS/ 5.00", key="o2", use_container_width=True):
-        st.session_state.carrito.append({"nombre": "Porción de Maduro", "precio": 5.00})
-    if c3.button("Porción Alitas (x ud)\n\nS/ 4.00", key="o3", use_container_width=True):
-        st.session_state.carrito.append({"nombre": "Porción de Alitas (x ud)", "precio": 4.00})
-        
-    c4, c5, c6 = st.columns(3)
-    if c4.button("Inca Kola 500ml\n\nS/ 5.00", key="o4", use_container_width=True):
-        st.session_state.carrito.append({"nombre": "Inca Kola 500ml", "precio": 5.00})
-    if c5.button("Coca Cola 500ml\n\nS/ 5.00", key="o5", use_container_width=True):
-        st.session_state.carrito.append({"nombre": "Coca Cola 500ml", "precio": 5.00})
-    if c6.button("Chicha Morada\n\nS/ 3.00", key="o6", use_container_width=True):
-        st.session_state.carrito.append({"nombre": "Chicha Morada", "precio": 3.00})
-    st.markdown('</div>', unsafe_allow_html=True)
+        for i in range(0, len(prods_cat), num_cols):
+            grupo = prods_cat[i:i + num_cols]
+            cols = st.columns(num_cols)
+            for col, (nombre, _, precio, key_id) in zip(cols, grupo):
+                label_btn = f"{nombre}\n\nS/ {precio:.2f}"
+                if col.button(label_btn, key=key_id, use_container_width=True):
+                    st.session_state.carrito.append({"nombre": nombre, "precio": precio})
+                    
+        st.markdown('</div>', unsafe_allow_html=True)
 
 
 # --- COLUMNA DERECHA: TARJETA DE PEDIDO ACTUAL ---
